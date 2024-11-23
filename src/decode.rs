@@ -13,7 +13,7 @@ pub fn decode(data: &str) -> BencodeType {
 
 /// Decode a bencoded integer
 fn decode_integer(data: &str) -> BencodeType {
-    let regex = Regex::new(r"i\d+e").unwrap();
+    let regex = Regex::new(r"i-?\d+e").unwrap();
     let res = regex.find(data);
     let value = match res {
         Some(mat) => mat,
@@ -30,6 +30,15 @@ mod tests {
     #[test]
     fn decode_positive_integer() {
         let integer = 42;
+        let bencoded_data = format!("i{}e", integer);
+        let expected_output = BencodeType::Integer(integer);
+        let output = decode(&bencoded_data[..]);
+        assert_eq!(output, expected_output);
+    }
+
+    #[test]
+    fn decode_negative_integer() {
+        let integer = -42;
         let bencoded_data = format!("i{}e", integer);
         let expected_output = BencodeType::Integer(integer);
         let output = decode(&bencoded_data[..]);
