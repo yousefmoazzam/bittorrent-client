@@ -6,7 +6,16 @@ pub struct Metainfo;
 impl Metainfo {
     pub fn new(data: BencodeType) -> Result<(), String> {
         match data {
-            BencodeType::Dict(_) => todo!(),
+            BencodeType::Dict(dict) => {
+                if !dict.contains_key("announce") {
+                    return Err(
+                        "Invalid input, metainfo dict missing the following key: announce"
+                            .to_string(),
+                    );
+                }
+
+                todo!()
+            }
             _ => Err("Invalid input, metainfo file must be a dict".to_string()),
         }
     }
@@ -14,6 +23,8 @@ impl Metainfo {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
 
     #[test]
@@ -22,5 +33,16 @@ mod tests {
         let res = Metainfo::new(incorrect_input);
         let expected_err_msg = "Invalid input, metainfo file must be a dict";
         assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg))
+    }
+
+    #[test]
+    fn return_error_if_dict_missing_announce_key() {
+        let info = BencodeType::Dict(HashMap::new());
+        let mut map = HashMap::new();
+        map.insert("info".to_string(), info);
+        let incomplete_data = BencodeType::Dict(map);
+        let expected_err_msg = "Invalid input, metainfo dict missing the following key: announce";
+        let res = Metainfo::new(incomplete_data);
+        assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg));
     }
 }
