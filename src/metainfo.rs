@@ -55,6 +55,31 @@ impl Metainfo {
     }
 }
 
+const NAME_KEY: &str = "name";
+
+/// Info dict within metainfo file
+struct Info;
+
+impl Info {
+    fn new(data: BencodeType) -> Result<(), String> {
+        match data {
+            BencodeType::Dict(dict) => {
+                for key in [NAME_KEY] {
+                    if !dict.contains_key(key) {
+                        return Err(format!(
+                            "Invalid info dict, the following key is missing: {}",
+                            key
+                        ));
+                    }
+                }
+
+                todo!()
+            }
+            _ => todo!(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -114,6 +139,14 @@ mod tests {
         let expected_err_msg =
             "Invalid input, the following key's value has an incorrect type: info";
         let res = Metainfo::new(data);
+        assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg));
+    }
+
+    #[test]
+    fn return_error_if_info_dict_missing_name_key() {
+        let data = BencodeType::Dict(HashMap::new());
+        let expected_err_msg = "Invalid info dict, the following key is missing: name";
+        let res = Info::new(data);
         assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg));
     }
 }
