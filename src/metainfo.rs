@@ -61,12 +61,21 @@ const PIECE_LENGTH_KEY: &str = "piece length";
 const PIECES_KEY: &str = "pieces";
 
 /// Info dict within metainfo file
-struct Info;
+struct Info {
+    /// Name of the file
+    name: String,
+    /// Length of the file in bytes
+    length: usize,
+    /// Length of a piece of the file in bytes
+    piece_length: usize,
+    /// String containing full pieces bencoded byte string
+    pieces: String,
+}
 
 impl Info {
-    fn new(data: BencodeType) -> Result<(), String> {
+    fn new(data: BencodeType) -> Result<Info, String> {
         match data {
-            BencodeType::Dict(dict) => {
+            BencodeType::Dict(mut dict) => {
                 for key in [NAME_KEY, LENGTH_KEY, PIECE_LENGTH_KEY, PIECES_KEY] {
                     if !dict.contains_key(key) {
                         return Err(format!(
@@ -76,7 +85,48 @@ impl Info {
                     }
                 }
 
-                todo!()
+                let name = if let BencodeType::ByteString(val) = dict
+                    .remove(NAME_KEY)
+                    .expect("`name` key confirmed to exist in hashmap")
+                {
+                    val
+                } else {
+                    panic!()
+                };
+
+                let length = if let BencodeType::Integer(val) = dict
+                    .remove(LENGTH_KEY)
+                    .expect("`name` key confirmed to exist in hashmap")
+                {
+                    usize::try_from(val).unwrap()
+                } else {
+                    panic!()
+                };
+
+                let piece_length = if let BencodeType::Integer(val) = dict
+                    .remove(PIECE_LENGTH_KEY)
+                    .expect("`piece length` key confirmed to exist in hashmap")
+                {
+                    usize::try_from(val).unwrap()
+                } else {
+                    panic!()
+                };
+
+                let pieces = if let BencodeType::ByteString(val) = dict
+                    .remove(PIECES_KEY)
+                    .expect("`pieces` key confirmed to exist in hashmap")
+                {
+                    val
+                } else {
+                    panic!()
+                };
+
+                Ok(Info {
+                    name,
+                    length,
+                    piece_length,
+                    pieces,
+                })
             }
             _ => todo!(),
         }
@@ -193,5 +243,34 @@ mod tests {
         let expected_err_msg = "Invalid info dict, the following key is missing: pieces";
         let res = Info::new(data);
         assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg));
+    }
+
+    #[test]
+    fn get_expected_info_struct_from_valid_info_dict() {
+        let name = "hello";
+        let length = 128;
+        let piece_length = 64;
+        let hello_sha1 = "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d";
+        let goodbye_sha1 = "3c8ec4874488f6090a157b014ce3397ca8e06d4f";
+        let mut map = HashMap::new();
+        map.insert(
+            "name".to_string(),
+            BencodeType::ByteString(name.to_string()),
+        );
+        map.insert("length".to_string(), BencodeType::Integer(length));
+        map.insert(
+            "piece length".to_string(),
+            BencodeType::Integer(piece_length),
+        );
+        map.insert(
+            "pieces".to_string(),
+            BencodeType::ByteString(format!("{}{}", hello_sha1, goodbye_sha1)),
+        );
+        let data = BencodeType::Dict(map);
+        let info = Info::new(data).unwrap();
+        assert_eq!(info.name, name.to_string());
+        assert_eq!(info.length, usize::try_from(length).unwrap());
+        assert_eq!(info.piece_length, usize::try_from(piece_length).unwrap());
+        assert_eq!(info.pieces, format!("{}{}", hello_sha1, goodbye_sha1));
     }
 }
