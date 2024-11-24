@@ -3,21 +3,20 @@ use crate::BencodeType;
 /// Metainfo (`.torrent`) file
 pub struct Metainfo;
 
+const ANNOUNCE_KEY: &str = "announce";
+const INFO_KEY: &str = "info";
+
 impl Metainfo {
     pub fn new(data: BencodeType) -> Result<(), String> {
         match data {
             BencodeType::Dict(dict) => {
-                if !dict.contains_key("announce") {
-                    return Err(
-                        "Invalid input, metainfo dict missing the following key: announce"
-                            .to_string(),
-                    );
-                }
-
-                if !dict.contains_key("info") {
-                    return Err(
-                        "Invalid input, metainfo dict missing the following key: info".to_string(),
-                    );
+                for key in [ANNOUNCE_KEY, INFO_KEY] {
+                    if !dict.contains_key(key) {
+                        return Err(format!(
+                            "Invalid input, metainfo dict missing the following key: {}",
+                            key
+                        ));
+                    }
                 }
 
                 todo!()
