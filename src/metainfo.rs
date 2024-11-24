@@ -57,6 +57,7 @@ impl Metainfo {
 
 const NAME_KEY: &str = "name";
 const LENGTH_KEY: &str = "length";
+const PIECE_LENGTH_KEY: &str = "piece length";
 
 /// Info dict within metainfo file
 struct Info;
@@ -65,7 +66,7 @@ impl Info {
     fn new(data: BencodeType) -> Result<(), String> {
         match data {
             BencodeType::Dict(dict) => {
-                for key in [NAME_KEY, LENGTH_KEY] {
+                for key in [NAME_KEY, LENGTH_KEY, PIECE_LENGTH_KEY] {
                     if !dict.contains_key(key) {
                         return Err(format!(
                             "Invalid info dict, the following key is missing: {}",
@@ -160,6 +161,20 @@ mod tests {
         );
         let data = BencodeType::Dict(map);
         let expected_err_msg = "Invalid info dict, the following key is missing: length";
+        let res = Info::new(data);
+        assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg));
+    }
+
+    #[test]
+    fn return_error_if_info_dict_missing_piece_length_key() {
+        let mut map = HashMap::new();
+        map.insert(
+            "name".to_string(),
+            BencodeType::ByteString("hello".to_string()),
+        );
+        map.insert("length".to_string(), BencodeType::Integer(64));
+        let data = BencodeType::Dict(map);
+        let expected_err_msg = "Invalid info dict, the following key is missing: piece length";
         let res = Info::new(data);
         assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg));
     }
