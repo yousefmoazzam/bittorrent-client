@@ -14,6 +14,12 @@ impl Metainfo {
                     );
                 }
 
+                if !dict.contains_key("info") {
+                    return Err(
+                        "Invalid input, metainfo dict missing the following key: info".to_string(),
+                    );
+                }
+
                 todo!()
             }
             _ => Err("Invalid input, metainfo file must be a dict".to_string()),
@@ -42,6 +48,17 @@ mod tests {
         map.insert("info".to_string(), info);
         let incomplete_data = BencodeType::Dict(map);
         let expected_err_msg = "Invalid input, metainfo dict missing the following key: announce";
+        let res = Metainfo::new(incomplete_data);
+        assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg));
+    }
+
+    #[test]
+    fn return_error_if_dict_missing_info_key() {
+        let announce = BencodeType::ByteString("http://some.place.org:1234/announce".to_string());
+        let mut map = HashMap::new();
+        map.insert("announce".to_string(), announce);
+        let incomplete_data = BencodeType::Dict(map);
+        let expected_err_msg = "Invalid input, metainfo dict missing the following key: info";
         let res = Metainfo::new(incomplete_data);
         assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg));
     }
