@@ -19,7 +19,17 @@ impl Metainfo {
                     }
                 }
 
-                todo!()
+                let _ = if let BencodeType::ByteString(_) = dict
+                    .get(ANNOUNCE_KEY)
+                    .expect("`announce` key has been confirmed to exist in hashmap")
+                {
+                    todo!()
+                } else {
+                    return Err(
+                        "Invalid input, the following key's value has an incorrect type: announce"
+                            .to_string(),
+                    );
+                };
             }
             _ => Err("Invalid input, metainfo file must be a dict".to_string()),
         }
@@ -59,6 +69,20 @@ mod tests {
         let incomplete_data = BencodeType::Dict(map);
         let expected_err_msg = "Invalid input, metainfo dict missing the following key: info";
         let res = Metainfo::new(incomplete_data);
+        assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg));
+    }
+
+    #[test]
+    fn return_error_if_announce_value_is_incorrect_decoded_variant() {
+        let announce = BencodeType::Integer(10);
+        let info = BencodeType::Dict(HashMap::new());
+        let mut map = HashMap::new();
+        map.insert("announce".to_string(), announce);
+        map.insert("info".to_string(), info);
+        let data = BencodeType::Dict(map);
+        let expected_err_msg =
+            "Invalid input, the following key's value has an incorrect type: announce";
+        let res = Metainfo::new(data);
         assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg));
     }
 }
