@@ -59,6 +59,7 @@ const NAME_KEY: &str = "name";
 const LENGTH_KEY: &str = "length";
 const PIECE_LENGTH_KEY: &str = "piece length";
 const PIECES_KEY: &str = "pieces";
+const SHA1_HASH_HEX_OUTPUT_SIZE: usize = 40;
 
 /// Info dict within metainfo file
 struct Info {
@@ -130,6 +131,13 @@ impl Info {
             }
             _ => todo!(),
         }
+    }
+
+    /// Get single piece from `pieces`
+    fn piece(&self, number: usize) -> &str {
+        let start = number * SHA1_HASH_HEX_OUTPUT_SIZE;
+        let stop = start + SHA1_HASH_HEX_OUTPUT_SIZE;
+        return &self.pieces[start..stop];
     }
 }
 
@@ -272,5 +280,32 @@ mod tests {
         assert_eq!(info.length, usize::try_from(length).unwrap());
         assert_eq!(info.piece_length, usize::try_from(piece_length).unwrap());
         assert_eq!(info.pieces, format!("{}{}", hello_sha1, goodbye_sha1));
+    }
+
+    #[test]
+    fn get_pieces_from_info_struct() {
+        let name = "hello";
+        let length = 128;
+        let piece_length = 64;
+        let hello_sha1 = "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d";
+        let goodbye_sha1 = "3c8ec4874488f6090a157b014ce3397ca8e06d4f";
+        let mut map = HashMap::new();
+        map.insert(
+            "name".to_string(),
+            BencodeType::ByteString(name.to_string()),
+        );
+        map.insert("length".to_string(), BencodeType::Integer(length));
+        map.insert(
+            "piece length".to_string(),
+            BencodeType::Integer(piece_length),
+        );
+        map.insert(
+            "pieces".to_string(),
+            BencodeType::ByteString(format!("{}{}", hello_sha1, goodbye_sha1)),
+        );
+        let data = BencodeType::Dict(map);
+        let info = Info::new(data).unwrap();
+        assert_eq!(info.piece(0), hello_sha1);
+        assert_eq!(info.piece(1), goodbye_sha1);
     }
 }
