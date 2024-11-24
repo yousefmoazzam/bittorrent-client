@@ -19,14 +19,26 @@ impl Metainfo {
                     }
                 }
 
-                let _ = if let BencodeType::ByteString(_) = dict
+                let _ = if let BencodeType::ByteString(val) = dict
                     .get(ANNOUNCE_KEY)
                     .expect("`announce` key has been confirmed to exist in hashmap")
+                {
+                    val
+                } else {
+                    return Err(
+                        "Invalid input, the following key's value has an incorrect type: announce"
+                            .to_string(),
+                    );
+                };
+
+                let _ = if let BencodeType::Dict(_) = dict
+                    .get(INFO_KEY)
+                    .expect("`info` key has been confirmed to exist in hashmap")
                 {
                     todo!()
                 } else {
                     return Err(
-                        "Invalid input, the following key's value has an incorrect type: announce"
+                        "Invalid input, the following key's value has an incorrect type: info"
                             .to_string(),
                     );
                 };
@@ -82,6 +94,20 @@ mod tests {
         let data = BencodeType::Dict(map);
         let expected_err_msg =
             "Invalid input, the following key's value has an incorrect type: announce";
+        let res = Metainfo::new(data);
+        assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg));
+    }
+
+    #[test]
+    fn return_error_if_info_value_is_incorrect_decoded_variant() {
+        let announce = BencodeType::ByteString("hello".to_string());
+        let info = BencodeType::List(vec![]);
+        let mut map = HashMap::new();
+        map.insert("announce".to_string(), announce);
+        map.insert("info".to_string(), info);
+        let data = BencodeType::Dict(map);
+        let expected_err_msg =
+            "Invalid input, the following key's value has an incorrect type: info";
         let res = Metainfo::new(data);
         assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg));
     }
