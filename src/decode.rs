@@ -1,5 +1,7 @@
 use crate::BencodeType;
 
+use std::collections::HashMap;
+
 use regex::Regex;
 
 /// Decode bencoded data
@@ -32,8 +34,34 @@ fn decode_recurse(data: &str, idx: &mut usize) -> BencodeType {
             *idx += 1;
             decode_list(data, idx)
         }
+        'd' => {
+            *idx += 1;
+            decode_dict(data, idx)
+        }
         _ => todo!(),
     }
+}
+
+/// Decode a bencoded dict
+fn decode_dict(data: &str, idx: &mut usize) -> BencodeType {
+    let mut map = HashMap::new();
+
+    loop {
+        let key = decode_recurse(data, idx);
+        let value = decode_recurse(data, idx);
+
+        if let BencodeType::ByteString(key_name) = key {
+            map.insert(key_name, value);
+        } else {
+            todo!()
+        }
+
+        if (&data[*idx..]).chars().next().unwrap() == 'e' {
+            break;
+        }
+    }
+
+    BencodeType::Dict(map)
 }
 
 /// Decode a bencoded list
@@ -122,6 +150,33 @@ mod tests {
             BencodeType::Integer(integer),
             BencodeType::ByteString(string.to_string()),
         ]);
+        let output = decode(&bencoded_data);
+        assert_eq!(output, expected_output);
+    }
+
+    #[test]
+    fn decode_dict_containing_strings_and_ints() {
+        let key1 = "comment";
+        let value1 = "Description of contents";
+        let key2 = "creation date";
+        let value2 = 1234567890;
+        let bencoded_data = format!(
+            "d{}:{}{}:{}{}:{}i{}ee",
+            key1.len(),
+            key1,
+            value1.len(),
+            value1,
+            key2.len(),
+            key2,
+            value2,
+        );
+        let mut map = HashMap::new();
+        map.insert(
+            key1.to_string(),
+            BencodeType::ByteString(value1.to_string()),
+        );
+        map.insert(key2.to_string(), BencodeType::Integer(value2));
+        let expected_output = BencodeType::Dict(map);
         let output = decode(&bencoded_data);
         assert_eq!(output, expected_output);
     }
