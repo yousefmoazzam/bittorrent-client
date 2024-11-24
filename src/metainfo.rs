@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::BencodeType;
 
 /// Metainfo (`.torrent`) file
@@ -6,19 +8,24 @@ pub struct Metainfo;
 const ANNOUNCE_KEY: &str = "announce";
 const INFO_KEY: &str = "info";
 
+/// Check the required keys for a valid metainfo dict exist in the given hashmap
+fn check_required_keys_exist(dict: &HashMap<String, BencodeType>) -> Result<(), String> {
+    for key in [ANNOUNCE_KEY, INFO_KEY] {
+        if !dict.contains_key(key) {
+            return Err(format!(
+                "Invalid input, metainfo dict missing the following key: {}",
+                key
+            ));
+        }
+    }
+    Ok(())
+}
+
 impl Metainfo {
     pub fn new(data: BencodeType) -> Result<(), String> {
         match data {
             BencodeType::Dict(dict) => {
-                for key in [ANNOUNCE_KEY, INFO_KEY] {
-                    if !dict.contains_key(key) {
-                        return Err(format!(
-                            "Invalid input, metainfo dict missing the following key: {}",
-                            key
-                        ));
-                    }
-                }
-
+                check_required_keys_exist(&dict)?;
                 let _ = if let BencodeType::ByteString(val) = dict
                     .get(ANNOUNCE_KEY)
                     .expect("`announce` key has been confirmed to exist in hashmap")
@@ -50,8 +57,6 @@ impl Metainfo {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
     use super::*;
 
     #[test]
