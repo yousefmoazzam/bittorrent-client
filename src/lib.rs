@@ -4,4 +4,5 @@ pub mod decode;
 pub enum BencodeType {
     Integer(i64),
     ByteString(String),
+    List(Vec<BencodeType>),
 }
