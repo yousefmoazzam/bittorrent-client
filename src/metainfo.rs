@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use crate::BencodeType;
 
 /// Metainfo (`.torrent`) file
-pub struct Metainfo;
+pub struct Metainfo {
+    announce: String,
+    info: Info,
+}
 
 const ANNOUNCE_KEY: &str = "announce";
 const INFO_KEY: &str = "info";
@@ -22,12 +25,12 @@ fn check_required_keys_exist(dict: &HashMap<String, BencodeType>) -> Result<(), 
 }
 
 impl Metainfo {
-    pub fn new(data: BencodeType) -> Result<(), String> {
+    pub fn new(data: BencodeType) -> Result<Metainfo, String> {
         match data {
-            BencodeType::Dict(dict) => {
+            BencodeType::Dict(mut dict) => {
                 check_required_keys_exist(&dict)?;
-                let _ = if let BencodeType::ByteString(val) = dict
-                    .get(ANNOUNCE_KEY)
+                let announce = if let BencodeType::ByteString(val) = dict
+                    .remove(ANNOUNCE_KEY)
                     .expect("`announce` key has been confirmed to exist in hashmap")
                 {
                     val
@@ -38,17 +41,21 @@ impl Metainfo {
                     );
                 };
 
-                let _ = if let BencodeType::Dict(_) = dict
-                    .get(INFO_KEY)
-                    .expect("`info` key has been confirmed to exist in hashmap")
-                {
-                    todo!()
-                } else {
-                    return Err(
-                        "Invalid input, the following key's value has an incorrect type: info"
-                            .to_string(),
-                    );
-                };
+                let info_decoded = dict
+                    .remove(INFO_KEY)
+                    .expect("`info` key has been confirmed to exist in hashmap");
+                match info_decoded {
+                    BencodeType::ByteString(_) | BencodeType::Integer(_) | BencodeType::List(_) => {
+                        return Err(
+                            "Invalid input, the following key's value has an incorrect type: info"
+                                .to_string(),
+                        );
+                    }
+                    BencodeType::Dict(_) => Ok(Metainfo {
+                        announce,
+                        info: Info::new(info_decoded)?,
+                    }),
+                }
             }
             _ => Err("Invalid input, metainfo file must be a dict".to_string()),
         }
@@ -307,5 +314,40 @@ mod tests {
         let info = Info::new(data).unwrap();
         assert_eq!(info.piece(0), hello_sha1);
         assert_eq!(info.piece(1), goodbye_sha1);
+    }
+
+    #[test]
+    fn get_expected_metainfo_struct_from_valid_dict() {
+        let announce = "hello";
+        let mut metainfo_map = HashMap::new();
+        metainfo_map.insert(
+            "announce".to_string(),
+            BencodeType::ByteString(announce.to_string()),
+        );
+
+        let name = "hello";
+        let length = 128;
+        let piece_length = 64;
+        let hello_sha1 = "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d";
+        let goodbye_sha1 = "3c8ec4874488f6090a157b014ce3397ca8e06d4f";
+        let mut info_map = HashMap::new();
+        info_map.insert(
+            "name".to_string(),
+            BencodeType::ByteString(name.to_string()),
+        );
+        info_map.insert("length".to_string(), BencodeType::Integer(length));
+        info_map.insert(
+            "piece length".to_string(),
+            BencodeType::Integer(piece_length),
+        );
+        info_map.insert(
+            "pieces".to_string(),
+            BencodeType::ByteString(format!("{}{}", hello_sha1, goodbye_sha1)),
+        );
+
+        metainfo_map.insert("info".to_string(), BencodeType::Dict(info_map));
+        let data = BencodeType::Dict(metainfo_map);
+        let metainfo = Metainfo::new(data).unwrap();
+        assert_eq!(metainfo.announce, announce);
     }
 }
