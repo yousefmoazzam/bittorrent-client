@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 pub mod decode;
+pub mod handshake;
 pub mod metainfo;
 pub mod tracker;
 
