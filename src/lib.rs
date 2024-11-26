@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 pub mod decode;
 pub mod metainfo;
+pub mod tracker;
 
 #[derive(Debug, PartialEq)]
 pub enum BencodeType {
