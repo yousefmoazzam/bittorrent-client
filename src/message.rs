@@ -1,3 +1,5 @@
+const ID_INDEX: u8 = 4;
+
 /// Peer message types
 #[derive(Debug, PartialEq)]
 pub enum Message {
@@ -10,7 +12,7 @@ pub enum Message {
 impl Message {
     pub fn new(data: &[u8]) -> Message {
         let len = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
-        let id = data[4];
+        let id = data[ID_INDEX as usize];
 
         if len == 1 {
             return match id {
