@@ -3,6 +3,7 @@
 pub enum Message {
     Choke,
     Unchoke,
+    Interested,
 }
 
 impl Message {
@@ -14,6 +15,7 @@ impl Message {
             return match id {
                 0x00 => Message::Choke,
                 0x01 => Message::Unchoke,
+                0x02 => Message::Interested,
                 _ => todo!(),
             };
         }
@@ -44,6 +46,17 @@ mod tests {
         let mut buf = u32::to_be_bytes(len).to_vec();
         buf.push(id);
         let expected_message = Message::Unchoke;
+        let message = Message::new(&buf[..]);
+        assert_eq!(message, expected_message);
+    }
+
+    #[test]
+    fn parse_interested_message() {
+        let len: u32 = 1;
+        let id = 0x02;
+        let mut buf = u32::to_be_bytes(len).to_vec();
+        buf.push(id);
+        let expected_message = Message::Interested;
         let message = Message::new(&buf[..]);
         assert_eq!(message, expected_message);
     }
