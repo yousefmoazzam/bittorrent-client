@@ -9,6 +9,8 @@ pub enum Message {
     NotInterested,
     /// Index of piece the downloader has completed and checked the hash of
     Have(u64),
+    /// Describes which pieces (by index) the downloader has sent
+    Bitfield(Vec<u8>),
 }
 
 impl Message {
@@ -26,14 +28,17 @@ impl Message {
             };
         }
 
+        let bytes = &data[(ID_INDEX + 1) as usize..(ID_INDEX as u32 + len) as usize];
         match id {
             0x04 => {
-                let bytes = &data[(ID_INDEX + 1) as usize..(ID_INDEX as u32 + len) as usize];
                 let index = u64::from_be_bytes([
                     bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
                 ]);
                 Message::Have(index)
             }
+            0x05 => Message::Bitfield(
+                data[(ID_INDEX + 1) as usize..(ID_INDEX as u32 + len) as usize].to_vec(),
+            ),
             _ => todo!(),
         }
     }
@@ -96,6 +101,19 @@ mod tests {
         buf.push(id);
         buf.append(&mut u64::to_be_bytes(index).to_vec());
         let expected_message = Message::Have(index);
+        let message = Message::new(&buf[..]);
+        assert_eq!(message, expected_message);
+    }
+
+    #[test]
+    fn parse_bitfield_message() {
+        let len: u32 = 2;
+        let id = 0x05;
+        let bitfield = vec![0x10];
+        let mut buf = u32::to_be_bytes(len).to_vec();
+        buf.push(id);
+        buf.append(&mut bitfield.clone());
+        let expected_message = Message::Bitfield(bitfield);
         let message = Message::new(&buf[..]);
         assert_eq!(message, expected_message);
     }
