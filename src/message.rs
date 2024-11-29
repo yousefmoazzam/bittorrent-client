@@ -48,9 +48,7 @@ impl Message {
                 ]);
                 Message::Have(index)
             }
-            0x05 => Message::Bitfield(
-                data[(ID_INDEX + 1) as usize..(ID_INDEX as u32 + len) as usize].to_vec(),
-            ),
+            0x05 => Message::Bitfield(bytes.to_vec()),
             0x06 => {
                 let index = u64::from_be_bytes([
                     bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
