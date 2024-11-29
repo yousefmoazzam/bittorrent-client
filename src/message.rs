@@ -11,6 +11,12 @@ pub enum Message {
     Have(u64),
     /// Describes which pieces (by index) the downloader has sent
     Bitfield(Vec<u8>),
+    /// Request a subset of a piece (a block)
+    Request {
+        index: u64,
+        begin: u64,
+        length: u64,
+    },
 }
 
 impl Message {
@@ -39,6 +45,24 @@ impl Message {
             0x05 => Message::Bitfield(
                 data[(ID_INDEX + 1) as usize..(ID_INDEX as u32 + len) as usize].to_vec(),
             ),
+            0x06 => {
+                let index = u64::from_be_bytes([
+                    bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+                ]);
+                let begin = u64::from_be_bytes([
+                    bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14],
+                    bytes[15],
+                ]);
+                let length = u64::from_be_bytes([
+                    bytes[16], bytes[17], bytes[18], bytes[19], bytes[20], bytes[21], bytes[22],
+                    bytes[23],
+                ]);
+                Message::Request {
+                    index,
+                    begin,
+                    length,
+                }
+            }
             _ => todo!(),
         }
     }
@@ -114,6 +138,27 @@ mod tests {
         buf.push(id);
         buf.append(&mut bitfield.clone());
         let expected_message = Message::Bitfield(bitfield);
+        let message = Message::new(&buf[..]);
+        assert_eq!(message, expected_message);
+    }
+
+    #[test]
+    fn parse_request_message() {
+        let len: u32 = 25;
+        let id = 0x06;
+        let index: u64 = 30;
+        let begin: u64 = 100;
+        let length: u64 = 200;
+        let mut buf = u32::to_be_bytes(len).to_vec();
+        buf.push(id);
+        buf.append(&mut u64::to_be_bytes(index).to_vec());
+        buf.append(&mut u64::to_be_bytes(begin).to_vec());
+        buf.append(&mut u64::to_be_bytes(length).to_vec());
+        let expected_message = Message::Request {
+            index,
+            begin,
+            length,
+        };
         let message = Message::new(&buf[..]);
         assert_eq!(message, expected_message);
     }
