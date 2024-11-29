@@ -23,6 +23,12 @@ pub enum Message {
         begin: u64,
         block: Vec<u8>,
     },
+    /// Cancel a request for a block
+    Cancel {
+        index: u64,
+        begin: u64,
+        length: u64,
+    },
 }
 
 impl Message {
@@ -49,7 +55,7 @@ impl Message {
                 Message::Have(index)
             }
             0x05 => Message::Bitfield(bytes.to_vec()),
-            0x06 => {
+            0x06 | 0x08 => {
                 let index = u64::from_be_bytes([
                     bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
                 ]);
@@ -61,10 +67,19 @@ impl Message {
                     bytes[16], bytes[17], bytes[18], bytes[19], bytes[20], bytes[21], bytes[22],
                     bytes[23],
                 ]);
-                Message::Request {
-                    index,
-                    begin,
-                    length,
+
+                if id == 0x06 {
+                    Message::Request {
+                        index,
+                        begin,
+                        length,
+                    }
+                } else {
+                    Message::Cancel {
+                        index,
+                        begin,
+                        length,
+                    }
                 }
             }
             0x07 => {
@@ -198,6 +213,27 @@ mod tests {
             index,
             begin,
             block,
+        };
+        let message = Message::new(&buf[..]);
+        assert_eq!(message, expected_message);
+    }
+
+    #[test]
+    fn parse_cancel_message() {
+        let len: u32 = 25;
+        let id = 0x08;
+        let index: u64 = 30;
+        let begin: u64 = 100;
+        let length: u64 = 200;
+        let mut buf = u32::to_be_bytes(len).to_vec();
+        buf.push(id);
+        buf.append(&mut u64::to_be_bytes(index).to_vec());
+        buf.append(&mut u64::to_be_bytes(begin).to_vec());
+        buf.append(&mut u64::to_be_bytes(length).to_vec());
+        let expected_message = Message::Cancel {
+            index,
+            begin,
+            length,
         };
         let message = Message::new(&buf[..]);
         assert_eq!(message, expected_message);
