@@ -32,17 +32,17 @@ pub enum Message {
 }
 
 impl Message {
-    pub fn new(data: &[u8]) -> Message {
+    pub fn new(data: &[u8]) -> Result<Message, String> {
         let len = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
         let id = data[ID_INDEX as usize];
 
         if len == 1 {
             return match id {
-                0x00 => Message::Choke,
-                0x01 => Message::Unchoke,
-                0x02 => Message::Interested,
-                0x03 => Message::NotInterested,
-                _ => todo!(),
+                0x00 => Ok(Message::Choke),
+                0x01 => Ok(Message::Unchoke),
+                0x02 => Ok(Message::Interested),
+                0x03 => Ok(Message::NotInterested),
+                _ => Err(format!("Invalid ID for single byte message: {}", id)),
             };
         }
 
@@ -52,9 +52,9 @@ impl Message {
                 let index = u64::from_be_bytes([
                     bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
                 ]);
-                Message::Have(index)
+                Ok(Message::Have(index))
             }
-            0x05 => Message::Bitfield(bytes.to_vec()),
+            0x05 => Ok(Message::Bitfield(bytes.to_vec())),
             0x06 | 0x08 => {
                 let index = u64::from_be_bytes([
                     bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
@@ -69,17 +69,17 @@ impl Message {
                 ]);
 
                 if id == 0x06 {
-                    Message::Request {
+                    Ok(Message::Request {
                         index,
                         begin,
                         length,
-                    }
+                    })
                 } else {
-                    Message::Cancel {
+                    Ok(Message::Cancel {
                         index,
                         begin,
                         length,
-                    }
+                    })
                 }
             }
             0x07 => {
@@ -91,11 +91,11 @@ impl Message {
                     bytes[15],
                 ]);
                 let block = bytes[16..].to_vec();
-                Message::Piece {
+                Ok(Message::Piece {
                     index,
                     begin,
                     block,
-                }
+                })
             }
             _ => todo!(),
         }
@@ -113,8 +113,8 @@ mod tests {
         let mut buf = u32::to_be_bytes(len).to_vec();
         buf.push(id);
         let expected_message = Message::Choke;
-        let message = Message::new(&buf[..]);
-        assert_eq!(message, expected_message);
+        let res = Message::new(&buf[..]);
+        assert_eq!(true, res.is_ok_and(|message| message == expected_message));
     }
 
     #[test]
@@ -124,8 +124,8 @@ mod tests {
         let mut buf = u32::to_be_bytes(len).to_vec();
         buf.push(id);
         let expected_message = Message::Unchoke;
-        let message = Message::new(&buf[..]);
-        assert_eq!(message, expected_message);
+        let res = Message::new(&buf[..]);
+        assert_eq!(true, res.is_ok_and(|message| message == expected_message));
     }
 
     #[test]
@@ -135,8 +135,8 @@ mod tests {
         let mut buf = u32::to_be_bytes(len).to_vec();
         buf.push(id);
         let expected_message = Message::Interested;
-        let message = Message::new(&buf[..]);
-        assert_eq!(message, expected_message);
+        let res = Message::new(&buf[..]);
+        assert_eq!(true, res.is_ok_and(|message| message == expected_message));
     }
 
     #[test]
@@ -146,8 +146,8 @@ mod tests {
         let mut buf = u32::to_be_bytes(len).to_vec();
         buf.push(id);
         let expected_message = Message::NotInterested;
-        let message = Message::new(&buf[..]);
-        assert_eq!(message, expected_message);
+        let res = Message::new(&buf[..]);
+        assert_eq!(true, res.is_ok_and(|message| message == expected_message));
     }
 
     #[test]
@@ -159,8 +159,8 @@ mod tests {
         buf.push(id);
         buf.append(&mut u64::to_be_bytes(index).to_vec());
         let expected_message = Message::Have(index);
-        let message = Message::new(&buf[..]);
-        assert_eq!(message, expected_message);
+        let res = Message::new(&buf[..]);
+        assert_eq!(true, res.is_ok_and(|message| message == expected_message));
     }
 
     #[test]
@@ -172,8 +172,8 @@ mod tests {
         buf.push(id);
         buf.append(&mut bitfield.clone());
         let expected_message = Message::Bitfield(bitfield);
-        let message = Message::new(&buf[..]);
-        assert_eq!(message, expected_message);
+        let res = Message::new(&buf[..]);
+        assert_eq!(true, res.is_ok_and(|message| message == expected_message));
     }
 
     #[test]
@@ -193,8 +193,8 @@ mod tests {
             begin,
             length,
         };
-        let message = Message::new(&buf[..]);
-        assert_eq!(message, expected_message);
+        let res = Message::new(&buf[..]);
+        assert_eq!(true, res.is_ok_and(|message| message == expected_message));
     }
 
     #[test]
@@ -214,8 +214,8 @@ mod tests {
             begin,
             block,
         };
-        let message = Message::new(&buf[..]);
-        assert_eq!(message, expected_message);
+        let res = Message::new(&buf[..]);
+        assert_eq!(true, res.is_ok_and(|message| message == expected_message));
     }
 
     #[test]
@@ -235,7 +235,18 @@ mod tests {
             begin,
             length,
         };
-        let message = Message::new(&buf[..]);
-        assert_eq!(message, expected_message);
+        let res = Message::new(&buf[..]);
+        assert_eq!(true, res.is_ok_and(|message| message == expected_message));
+    }
+
+    #[test]
+    fn return_error_if_single_byte_message_id_is_invalid() {
+        let len: u32 = 1;
+        let id = 0x04;
+        let mut buf = u32::to_be_bytes(len).to_vec();
+        buf.push(id);
+        let res = Message::new(&buf[..]);
+        let expected_err_msg = "Invalid ID for single byte message: 4";
+        assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg));
     }
 }
