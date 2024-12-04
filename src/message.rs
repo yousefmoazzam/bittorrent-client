@@ -97,7 +97,10 @@ impl Message {
                     block,
                 })
             }
-            _ => todo!(),
+            _ => Err(format!(
+                "Invalid message ID for message containing non-zero payload: {}",
+                id
+            )),
         }
     }
 }
@@ -247,6 +250,18 @@ mod tests {
         buf.push(id);
         let res = Message::new(&buf[..]);
         let expected_err_msg = "Invalid ID for single byte message: 4";
+        assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg));
+    }
+
+    #[test]
+    fn return_error_if_non_zero_payload_message_id_is_invalid() {
+        let len: u32 = 9;
+        let id = 0x01;
+        let mut buf = u32::to_be_bytes(len).to_vec();
+        buf.push(id);
+        buf.append(&mut [0; 8].to_vec());
+        let res = Message::new(&buf[..]);
+        let expected_err_msg = "Invalid message ID for message containing non-zero payload: 1";
         assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg));
     }
 }
