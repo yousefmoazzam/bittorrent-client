@@ -3,6 +3,7 @@ const ID_INDEX: u8 = 4;
 /// Peer message types
 #[derive(Debug, PartialEq)]
 pub enum Message {
+    KeepAlive,
     Choke,
     Unchoke,
     Interested,
@@ -34,6 +35,10 @@ pub enum Message {
 impl Message {
     pub fn new(data: &[u8]) -> Result<Message, String> {
         let len = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
+        if len == 0 {
+            return Ok(Message::KeepAlive);
+        }
+
         let id = data[ID_INDEX as usize];
 
         if len == 1 {
@@ -108,6 +113,15 @@ impl Message {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parse_keep_alive_message() {
+        let len: u32 = 0;
+        let buf = u32::to_le_bytes(len).to_vec();
+        let expected_message = Message::KeepAlive;
+        let res = Message::new(&buf[..]);
+        assert_eq!(true, res.is_ok_and(|message| message == expected_message))
+    }
 
     #[test]
     fn parse_choke_message() {
