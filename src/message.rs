@@ -1,5 +1,27 @@
 const ID_INDEX: u8 = 4;
 
+const BITS_IN_BYTE: usize = 8;
+
+/// Wrapper type for bitfield message payload
+pub struct Bitfield {
+    data: Vec<u8>,
+}
+
+impl Bitfield {
+    /// Create instance from bitfield message payload
+    pub fn new(data: Vec<u8>) -> Bitfield {
+        Bitfield { data }
+    }
+
+    /// Check if the bitfield contains the piece with the given index
+    pub fn has_piece(&self, idx: usize) -> bool {
+        let byte_index = idx / BITS_IN_BYTE;
+        let offset = idx % BITS_IN_BYTE;
+        let shifted_piece_bit = self.data[byte_index] >> (BITS_IN_BYTE - 1 - offset);
+        shifted_piece_bit & 0b00000001 == 0b00000001
+    }
+}
+
 /// Peer message types
 #[derive(Debug, PartialEq)]
 pub enum Message {
@@ -277,5 +299,15 @@ mod tests {
         let res = Message::new(&buf[..]);
         let expected_err_msg = "Invalid message ID for message containing non-zero payload: 1";
         assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg));
+    }
+
+    #[test]
+    fn bitfield_has_piece_returns_true_if_has_piece() {
+        // Bits 2 and 14 (interpreting in big-endian/network order) mean pieces 2 and 14 are
+        // available
+        let data = vec![0b00100000, 0b00000010];
+        let bitfield = Bitfield::new(data);
+        assert!(bitfield.has_piece(2));
+        assert!(bitfield.has_piece(14));
     }
 }
