@@ -3,6 +3,7 @@ const ID_INDEX: u8 = 4;
 const BITS_IN_BYTE: usize = 8;
 
 /// Wrapper type for bitfield message payload
+#[derive(Debug, PartialEq)]
 pub struct Bitfield {
     data: Vec<u8>,
 }
@@ -19,6 +20,14 @@ impl Bitfield {
         let offset = idx % BITS_IN_BYTE;
         let shifted_piece_bit = self.data[byte_index] >> (BITS_IN_BYTE - 1 - offset);
         shifted_piece_bit & 0b00000001 == 0b00000001
+    }
+
+    /// Set the bit in the bitfield that corresponds to the given piece index
+    pub fn set_piece(&mut self, idx: usize) {
+        let byte_index = idx / BITS_IN_BYTE;
+        let offset = idx % BITS_IN_BYTE;
+        let new_byte_value = 0b00000001 << (BITS_IN_BYTE - 1 - offset);
+        self.data[byte_index] |= new_byte_value
     }
 }
 
@@ -309,5 +318,15 @@ mod tests {
         let bitfield = Bitfield::new(data);
         assert!(bitfield.has_piece(2));
         assert!(bitfield.has_piece(14));
+    }
+
+    #[test]
+    fn bitfield_set_piece_sets_correct_bit_in_bitfield() {
+        let idx_to_set = 3;
+        let data = vec![0b10000000, 0x00];
+        let expected_bitfield = Bitfield::new(vec![0b10010000, 0x00]);
+        let mut bitfield = Bitfield::new(data);
+        bitfield.set_piece(idx_to_set);
+        assert_eq!(bitfield, expected_bitfield);
     }
 }
