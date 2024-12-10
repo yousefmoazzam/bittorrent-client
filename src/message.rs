@@ -42,7 +42,7 @@ pub enum Message {
     /// Index of piece the downloader has completed and checked the hash of
     Have(u64),
     /// Describes which pieces (by index) the downloader has sent
-    Bitfield(Vec<u8>),
+    Bitfield(Bitfield),
     /// Request a subset of a piece (a block)
     Request {
         index: u64,
@@ -90,7 +90,7 @@ impl Message {
                 ]);
                 Ok(Message::Have(index))
             }
-            0x05 => Ok(Message::Bitfield(bytes.to_vec())),
+            0x05 => Ok(Message::Bitfield(Bitfield::new(bytes.to_vec()))),
             0x06 | 0x08 => {
                 let index = u64::from_be_bytes([
                     bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
@@ -215,10 +215,11 @@ mod tests {
     fn parse_bitfield_message() {
         let len: u32 = 2;
         let id = 0x05;
-        let bitfield = vec![0x10];
+        let payload = vec![0x10];
         let mut buf = u32::to_be_bytes(len).to_vec();
         buf.push(id);
-        buf.append(&mut bitfield.clone());
+        buf.append(&mut payload.clone());
+        let bitfield = Bitfield::new(payload);
         let expected_message = Message::Bitfield(bitfield);
         let res = Message::new(&buf[..]);
         assert_eq!(true, res.is_ok_and(|message| message == expected_message));
