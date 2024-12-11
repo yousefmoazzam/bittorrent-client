@@ -7,6 +7,8 @@ pub mod message;
 pub mod metainfo;
 pub mod tracker;
 
+pub const PSTR: &str = "BitTorrent protocol";
+
 #[derive(Debug, PartialEq)]
 pub enum BencodeType {
     Integer(i64),

@@ -1,8 +1,8 @@
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 
 use crate::handshake::Handshake;
+use crate::PSTR;
 
-const PSTR: &str = "BitTorrent protocol";
 const HANDSHAKE_BYTES_LEN: usize = 68;
 
 /// Connected peer
