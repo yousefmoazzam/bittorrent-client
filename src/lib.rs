@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+pub mod client;
 pub mod decode;
 pub mod handshake;
 pub mod message;

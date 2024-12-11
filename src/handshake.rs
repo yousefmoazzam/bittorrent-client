@@ -10,7 +10,7 @@ pub struct Handshake {
     /// Protocol identifier
     pstr: String,
     /// SHA1 hash of bencoded `info` dict of file
-    info_hash: Vec<u8>,
+    pub info_hash: Vec<u8>,
     /// Identifier of peer
     peer_id: Vec<u8>,
 }
