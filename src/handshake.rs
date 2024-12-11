@@ -1,5 +1,4 @@
 const PROTOCOL_ID_LEN: u8 = 0x13;
-const PEER_ID: &str = "-ABC123-abcd12345678";
 const NO_OF_RESERVED_BYTES: u8 = 8;
 const INFO_HASH_LEN_BYTES: u8 = 20;
 const PEER_ID_LEN_BYTES: u8 = 20;
@@ -62,7 +61,7 @@ impl Handshake {
 mod tests {
     use super::*;
 
-    use crate::PSTR;
+    use crate::{PEER_ID, PSTR};
 
     #[test]
     fn serialised_handshake_is_correct() {

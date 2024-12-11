@@ -7,6 +7,7 @@ pub mod message;
 pub mod metainfo;
 pub mod tracker;
 
+pub const PEER_ID: &str = "-ABC123-abcd12345678";
 pub const PSTR: &str = "BitTorrent protocol";
 
 #[derive(Debug, PartialEq)]
