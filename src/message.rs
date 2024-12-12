@@ -1,3 +1,5 @@
+use tokio::io::{AsyncRead, AsyncReadExt, BufReader};
+
 const ID_INDEX: u8 = 4;
 
 const BITS_IN_BYTE: usize = 8;
@@ -64,13 +66,17 @@ pub enum Message {
 }
 
 impl Message {
-    pub fn new(data: &[u8]) -> Result<Message, String> {
-        let len = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
+    pub async fn new<T>(socket: T) -> std::io::Result<Message>
+    where
+        T: AsyncRead + Unpin,
+    {
+        let mut reader = BufReader::new(socket);
+        let len = reader.read_u32().await?;
         if len == 0 {
             return Ok(Message::KeepAlive);
         }
 
-        let id = data[ID_INDEX as usize];
+        let id = reader.read_u8().await?;
 
         if len == 1 {
             return match id {
@@ -78,11 +84,15 @@ impl Message {
                 0x01 => Ok(Message::Unchoke),
                 0x02 => Ok(Message::Interested),
                 0x03 => Ok(Message::NotInterested),
-                _ => Err(format!("Invalid ID for single byte message: {}", id)),
+                _ => Err(std::io::Error::other(format!(
+                    "Invalid ID for single byte message: {}",
+                    id
+                ))),
             };
         }
 
-        let bytes = &data[(ID_INDEX + 1) as usize..(ID_INDEX as u32 + len) as usize];
+        let mut bytes = vec![0; len as usize - 1];
+        reader.read_exact(&mut bytes[..]).await?;
         match id {
             0x04 => {
                 let index = u64::from_be_bytes([
@@ -133,10 +143,10 @@ impl Message {
                     block,
                 })
             }
-            _ => Err(format!(
+            _ => Err(std::io::Error::other(format!(
                 "Invalid message ID for message containing non-zero payload: {}",
                 id
-            )),
+            ))),
         }
     }
 }
@@ -145,61 +155,66 @@ impl Message {
 mod tests {
     use super::*;
 
-    #[test]
-    fn parse_keep_alive_message() {
+    #[tokio::test]
+    async fn parse_keep_alive_message() {
         let len: u32 = 0;
         let buf = u32::to_le_bytes(len).to_vec();
         let expected_message = Message::KeepAlive;
-        let res = Message::new(&buf[..]);
+        let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
+        let res = Message::new(mock_socket).await;
         assert_eq!(true, res.is_ok_and(|message| message == expected_message))
     }
 
-    #[test]
-    fn parse_choke_message() {
+    #[tokio::test]
+    async fn parse_choke_message() {
         let len: u32 = 1;
         let id = 0x00;
         let mut buf = u32::to_be_bytes(len).to_vec();
         buf.push(id);
         let expected_message = Message::Choke;
-        let res = Message::new(&buf[..]);
+        let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
+        let res = Message::new(mock_socket).await;
         assert_eq!(true, res.is_ok_and(|message| message == expected_message));
     }
 
-    #[test]
-    fn parse_unchoke_message() {
+    #[tokio::test]
+    async fn parse_unchoke_message() {
         let len: u32 = 1;
         let id = 0x01;
         let mut buf = u32::to_be_bytes(len).to_vec();
         buf.push(id);
         let expected_message = Message::Unchoke;
-        let res = Message::new(&buf[..]);
+        let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
+        let res = Message::new(mock_socket).await;
         assert_eq!(true, res.is_ok_and(|message| message == expected_message));
     }
 
-    #[test]
-    fn parse_interested_message() {
+    #[tokio::test]
+    async fn parse_interested_message() {
         let len: u32 = 1;
         let id = 0x02;
         let mut buf = u32::to_be_bytes(len).to_vec();
         buf.push(id);
         let expected_message = Message::Interested;
-        let res = Message::new(&buf[..]);
+        let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
+        let res = Message::new(mock_socket).await;
         assert_eq!(true, res.is_ok_and(|message| message == expected_message));
     }
 
-    #[test]
-    fn parse_not_interested_message() {
+    #[tokio::test]
+    async fn parse_not_interested_message() {
         let len: u32 = 1;
         let id = 0x03;
         let mut buf = u32::to_be_bytes(len).to_vec();
         buf.push(id);
         let expected_message = Message::NotInterested;
-        let res = Message::new(&buf[..]);
+        let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
+        let res = Message::new(mock_socket).await;
         assert_eq!(true, res.is_ok_and(|message| message == expected_message));
     }
 
-    #[test]
-    fn parse_have_message() {
+    #[tokio::test]
+    async fn parse_have_message() {
         let len: u32 = 9;
         let id = 0x04;
         let index: u64 = 100;
@@ -207,12 +222,13 @@ mod tests {
         buf.push(id);
         buf.append(&mut u64::to_be_bytes(index).to_vec());
         let expected_message = Message::Have(index);
-        let res = Message::new(&buf[..]);
+        let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
+        let res = Message::new(mock_socket).await;
         assert_eq!(true, res.is_ok_and(|message| message == expected_message));
     }
 
-    #[test]
-    fn parse_bitfield_message() {
+    #[tokio::test]
+    async fn parse_bitfield_message() {
         let len: u32 = 2;
         let id = 0x05;
         let payload = vec![0x10];
@@ -221,12 +237,13 @@ mod tests {
         buf.append(&mut payload.clone());
         let bitfield = Bitfield::new(payload);
         let expected_message = Message::Bitfield(bitfield);
-        let res = Message::new(&buf[..]);
+        let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
+        let res = Message::new(mock_socket).await;
         assert_eq!(true, res.is_ok_and(|message| message == expected_message));
     }
 
-    #[test]
-    fn parse_request_message() {
+    #[tokio::test]
+    async fn parse_request_message() {
         let len: u32 = 25;
         let id = 0x06;
         let index: u64 = 30;
@@ -242,12 +259,13 @@ mod tests {
             begin,
             length,
         };
-        let res = Message::new(&buf[..]);
+        let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
+        let res = Message::new(mock_socket).await;
         assert_eq!(true, res.is_ok_and(|message| message == expected_message));
     }
 
-    #[test]
-    fn parse_piece_message() {
+    #[tokio::test]
+    async fn parse_piece_message() {
         let id = 0x07;
         let index: u64 = 30;
         let begin: u64 = 100;
@@ -263,12 +281,13 @@ mod tests {
             begin,
             block,
         };
-        let res = Message::new(&buf[..]);
+        let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
+        let res = Message::new(mock_socket).await;
         assert_eq!(true, res.is_ok_and(|message| message == expected_message));
     }
 
-    #[test]
-    fn parse_cancel_message() {
+    #[tokio::test]
+    async fn parse_cancel_message() {
         let len: u32 = 25;
         let id = 0x08;
         let index: u64 = 30;
@@ -284,31 +303,40 @@ mod tests {
             begin,
             length,
         };
-        let res = Message::new(&buf[..]);
+        let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
+        let res = Message::new(mock_socket).await;
         assert_eq!(true, res.is_ok_and(|message| message == expected_message));
     }
 
-    #[test]
-    fn return_error_if_single_byte_message_id_is_invalid() {
+    #[tokio::test]
+    async fn return_error_if_single_byte_message_id_is_invalid() {
         let len: u32 = 1;
         let id = 0x04;
         let mut buf = u32::to_be_bytes(len).to_vec();
         buf.push(id);
-        let res = Message::new(&buf[..]);
+        let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
+        let res = Message::new(mock_socket).await;
         let expected_err_msg = "Invalid ID for single byte message: 4";
-        assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg));
+        assert_eq!(
+            true,
+            res.is_err_and(|msg| msg.to_string() == expected_err_msg)
+        );
     }
 
-    #[test]
-    fn return_error_if_non_zero_payload_message_id_is_invalid() {
+    #[tokio::test]
+    async fn return_error_if_non_zero_payload_message_id_is_invalid() {
         let len: u32 = 9;
         let id = 0x01;
         let mut buf = u32::to_be_bytes(len).to_vec();
         buf.push(id);
         buf.append(&mut [0; 8].to_vec());
-        let res = Message::new(&buf[..]);
+        let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
+        let res = Message::new(mock_socket).await;
         let expected_err_msg = "Invalid message ID for message containing non-zero payload: 1";
-        assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg));
+        assert_eq!(
+            true,
+            res.is_err_and(|msg| msg.to_string() == expected_err_msg)
+        );
     }
 
     #[test]
