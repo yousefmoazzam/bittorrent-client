@@ -9,12 +9,16 @@ const HANDSHAKE_BYTES_LEN: usize = 68;
 pub struct Client;
 
 impl Client {
+    /// Send handshake and receive bitfield message from peer
+    pub async fn new<T>(socket: T, info_hash: Vec<u8>, peer_id: &str) -> std::io::Result<()>
+    where
+        T: AsyncRead + AsyncWrite + Unpin,
+    {
+        Client::handshake(socket, info_hash, peer_id).await
+    }
+
     /// Send initial handshake to peer
-    pub async fn handshake<T>(
-        mut socket: T,
-        info_hash: Vec<u8>,
-        peer_id: &str,
-    ) -> std::io::Result<()>
+    async fn handshake<T>(mut socket: T, info_hash: Vec<u8>, peer_id: &str) -> std::io::Result<()>
     where
         T: AsyncRead + AsyncWrite + Unpin,
     {
@@ -74,7 +78,7 @@ mod tests {
             .write(&expected_initial_handshake.serialise())
             .read(&bad_response_handshake.serialise())
             .build();
-        let res = Client::handshake(mock_socket, info_hash.clone(), PEER_ID).await;
+        let res = Client::new(mock_socket, info_hash.clone(), PEER_ID).await;
 
         let expected_err_msg = format!(
             "Info hash mismatch: us={}, peer={}",
