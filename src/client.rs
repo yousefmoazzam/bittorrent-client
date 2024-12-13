@@ -76,7 +76,7 @@ where
 
     /// Receive initial bitfield message from peer
     async fn receive_bitfield(socket: &mut T) -> std::io::Result<Bitfield> {
-        match Message::new(socket).await? {
+        match Message::deserialise(socket).await? {
             Message::Bitfield(bitfield) => Ok(bitfield),
             _ => Err(std::io::Error::other("First message not bitfield")),
         }
