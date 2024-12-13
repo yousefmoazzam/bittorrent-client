@@ -162,7 +162,7 @@ mod tests {
         let expected_message = Message::KeepAlive;
         let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
         let res = Message::new(mock_socket).await;
-        assert_eq!(true, res.is_ok_and(|message| message == expected_message))
+        assert!(res.is_ok_and(|message| message == expected_message))
     }
 
     #[tokio::test]
@@ -174,7 +174,7 @@ mod tests {
         let expected_message = Message::Choke;
         let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
         let res = Message::new(mock_socket).await;
-        assert_eq!(true, res.is_ok_and(|message| message == expected_message));
+        assert!(res.is_ok_and(|message| message == expected_message));
     }
 
     #[tokio::test]
@@ -186,7 +186,7 @@ mod tests {
         let expected_message = Message::Unchoke;
         let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
         let res = Message::new(mock_socket).await;
-        assert_eq!(true, res.is_ok_and(|message| message == expected_message));
+        assert!(res.is_ok_and(|message| message == expected_message));
     }
 
     #[tokio::test]
@@ -198,7 +198,7 @@ mod tests {
         let expected_message = Message::Interested;
         let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
         let res = Message::new(mock_socket).await;
-        assert_eq!(true, res.is_ok_and(|message| message == expected_message));
+        assert!(res.is_ok_and(|message| message == expected_message));
     }
 
     #[tokio::test]
@@ -210,7 +210,7 @@ mod tests {
         let expected_message = Message::NotInterested;
         let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
         let res = Message::new(mock_socket).await;
-        assert_eq!(true, res.is_ok_and(|message| message == expected_message));
+        assert!(res.is_ok_and(|message| message == expected_message));
     }
 
     #[tokio::test]
@@ -224,7 +224,7 @@ mod tests {
         let expected_message = Message::Have(index);
         let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
         let res = Message::new(mock_socket).await;
-        assert_eq!(true, res.is_ok_and(|message| message == expected_message));
+        assert!(res.is_ok_and(|message| message == expected_message));
     }
 
     #[tokio::test]
@@ -239,7 +239,7 @@ mod tests {
         let expected_message = Message::Bitfield(bitfield);
         let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
         let res = Message::new(mock_socket).await;
-        assert_eq!(true, res.is_ok_and(|message| message == expected_message));
+        assert!(res.is_ok_and(|message| message == expected_message));
     }
 
     #[tokio::test]
@@ -261,7 +261,7 @@ mod tests {
         };
         let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
         let res = Message::new(mock_socket).await;
-        assert_eq!(true, res.is_ok_and(|message| message == expected_message));
+        assert!(res.is_ok_and(|message| message == expected_message));
     }
 
     #[tokio::test]
@@ -283,7 +283,7 @@ mod tests {
         };
         let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
         let res = Message::new(mock_socket).await;
-        assert_eq!(true, res.is_ok_and(|message| message == expected_message));
+        assert!(res.is_ok_and(|message| message == expected_message));
     }
 
     #[tokio::test]
@@ -305,7 +305,7 @@ mod tests {
         };
         let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
         let res = Message::new(mock_socket).await;
-        assert_eq!(true, res.is_ok_and(|message| message == expected_message));
+        assert!(res.is_ok_and(|message| message == expected_message));
     }
 
     #[tokio::test]
@@ -317,10 +317,7 @@ mod tests {
         let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
         let res = Message::new(mock_socket).await;
         let expected_err_msg = "Invalid ID for single byte message: 4";
-        assert_eq!(
-            true,
-            res.is_err_and(|msg| msg.to_string() == expected_err_msg)
-        );
+        assert!(res.is_err_and(|msg| msg.to_string() == expected_err_msg));
     }
 
     #[tokio::test]
@@ -333,10 +330,7 @@ mod tests {
         let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
         let res = Message::new(mock_socket).await;
         let expected_err_msg = "Invalid message ID for message containing non-zero payload: 1";
-        assert_eq!(
-            true,
-            res.is_err_and(|msg| msg.to_string() == expected_err_msg)
-        );
+        assert!(res.is_err_and(|msg| msg.to_string() == expected_err_msg));
     }
 
     #[test]
