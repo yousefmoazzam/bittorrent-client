@@ -30,7 +30,7 @@ where
         info_hash: Vec<u8>,
         peer_id: &str,
     ) -> std::io::Result<Client<T>> {
-        Client::handshake(&mut socket, info_hash.clone(), peer_id).await?;
+        Client::handshake(&mut socket, info_hash.clone()).await?;
         let bitfield = Client::receive_bitfield(&mut socket).await?;
         Ok(Client {
             socket,
@@ -42,7 +42,7 @@ where
     }
 
     /// Send initial handshake to peer
-    async fn handshake(mut socket: T, info_hash: Vec<u8>, peer_id: &str) -> std::io::Result<()> {
+    async fn handshake(mut socket: T, info_hash: Vec<u8>) -> std::io::Result<()> {
         let initial_handshake = Handshake::new(PSTR.to_string(), info_hash, PEER_ID.into());
         socket.write_all(&initial_handshake.serialise()[..]).await?;
 
