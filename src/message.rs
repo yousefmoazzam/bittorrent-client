@@ -150,6 +150,14 @@ impl Message {
             ))),
         }
     }
+
+    /// Serialise [`Message`] to raw bytes
+    pub fn serialise(&self) -> Vec<u8> {
+        match self {
+            Message::KeepAlive => u32::to_be_bytes(0).to_vec(),
+            _ => todo!(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -332,6 +340,14 @@ mod tests {
         let res = Message::deserialise(mock_socket).await;
         let expected_err_msg = "Invalid message ID for message containing non-zero payload: 1";
         assert!(res.is_err_and(|msg| msg.to_string() == expected_err_msg));
+    }
+
+    #[test]
+    fn serialise_keep_alive_message() {
+        let message = Message::KeepAlive;
+        let len: u32 = 0;
+        let expected_buf = u32::to_be_bytes(len).to_vec();
+        assert_eq!(message.serialise(), expected_buf);
     }
 
     #[test]
