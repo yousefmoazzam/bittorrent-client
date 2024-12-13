@@ -105,7 +105,7 @@ mod tests {
             .write(&expected_initial_handshake.serialise())
             .read(&bad_response_handshake.serialise())
             .build();
-        let res = Client::new(mock_socket, info_hash.clone(), PEER_ID).await;
+        let res = Client::new(mock_socket, info_hash.clone(), their_peer_id).await;
 
         let expected_err_msg = format!(
             "Info hash mismatch: us={}, peer={}",
@@ -141,7 +141,7 @@ mod tests {
             .read(&response_handshake.serialise())
             .read(&incorrect_first_message_data[..])
             .build();
-        let res = Client::new(mock_socket, info_hash.clone(), PEER_ID).await;
+        let res = Client::new(mock_socket, info_hash.clone(), their_peer_id).await;
 
         let expected_err_msg = "First message not bitfield";
         assert!(res.is_err_and(|val| val.to_string() == expected_err_msg));
