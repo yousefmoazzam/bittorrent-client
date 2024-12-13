@@ -2,30 +2,48 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 
 use crate::handshake::Handshake;
 use crate::message::{Bitfield, Message};
-use crate::PSTR;
+use crate::{PEER_ID, PSTR};
 
 const HANDSHAKE_BYTES_LEN: usize = 68;
 
 /// Connected peer
-pub struct Client;
+pub struct Client<T: AsyncRead + AsyncWrite + Unpin> {
+    /// Socket for peer communication
+    socket: T,
+    /// ID of connected peer
+    pub peer_id: String,
+    /// Whether the connection is choked or not
+    pub choked: bool,
+    /// Bitfield associated with peer
+    pub bitfield: Bitfield,
+    /// Info hash of the file
+    pub info_hash: Vec<u8>,
+}
 
-impl Client {
+impl<T> Client<T>
+where
+    T: AsyncRead + AsyncWrite + Unpin,
+{
     /// Send handshake and receive bitfield message from peer
-    pub async fn new<T>(mut socket: T, info_hash: Vec<u8>, peer_id: &str) -> std::io::Result<()>
-    where
-        T: AsyncRead + AsyncWrite + Unpin,
-    {
-        Client::handshake(&mut socket, info_hash, peer_id).await?;
-        Client::receive_bitfield(&mut socket).await?;
-        Ok(())
+    pub async fn new(
+        mut socket: T,
+        info_hash: Vec<u8>,
+        peer_id: &str,
+    ) -> std::io::Result<Client<T>> {
+        Client::handshake(&mut socket, info_hash.clone(), peer_id).await?;
+        let bitfield = Client::receive_bitfield(&mut socket).await?;
+        Ok(Client {
+            socket,
+            peer_id: peer_id.to_string(),
+            choked: true,
+            bitfield,
+            info_hash,
+        })
     }
 
     /// Send initial handshake to peer
-    async fn handshake<T>(mut socket: T, info_hash: Vec<u8>, peer_id: &str) -> std::io::Result<()>
-    where
-        T: AsyncRead + AsyncWrite + Unpin,
-    {
-        let initial_handshake = Handshake::new(PSTR.to_string(), info_hash, peer_id.into());
+    async fn handshake(mut socket: T, info_hash: Vec<u8>, peer_id: &str) -> std::io::Result<()> {
+        let initial_handshake = Handshake::new(PSTR.to_string(), info_hash, PEER_ID.into());
         socket.write_all(&initial_handshake.serialise()[..]).await?;
 
         let mut reader = BufReader::new(socket);
@@ -57,12 +75,9 @@ impl Client {
     }
 
     /// Receive initial bitfield message from peer
-    async fn receive_bitfield<T>(socket: &mut T) -> std::io::Result<Bitfield>
-    where
-        T: AsyncRead + Unpin,
-    {
+    async fn receive_bitfield(socket: &mut T) -> std::io::Result<Bitfield> {
         match Message::new(socket).await? {
-            Message::Bitfield(_) => todo!(),
+            Message::Bitfield(bitfield) => Ok(bitfield),
             _ => Err(std::io::Error::other("First message not bitfield")),
         }
     }
@@ -71,8 +86,6 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use crate::PEER_ID;
 
     #[tokio::test]
     async fn return_error_if_incorrect_info_hash_in_handshake_response() {
@@ -132,5 +145,35 @@ mod tests {
 
         let expected_err_msg = "First message not bitfield";
         assert!(res.is_err_and(|val| val.to_string() == expected_err_msg));
+    }
+
+    #[tokio::test]
+    async fn return_client_if_successful_handshake_and_receive_bitifield_message() {
+        let info_hash = (0x00..0x14).collect::<Vec<_>>();
+        let their_peer_id = "-DEF123-efgh12345678";
+
+        let initial_handshake = Handshake::new(PSTR.to_string(), info_hash.clone(), PEER_ID.into());
+        let response_handshake =
+            Handshake::new(PSTR.to_string(), info_hash.clone(), their_peer_id.into());
+        let len: u32 = 2;
+        let id = 0x05;
+        let payload = vec![0x10];
+        let mut bitfield_message = u32::to_be_bytes(len).to_vec();
+        bitfield_message.push(id);
+        bitfield_message.append(&mut payload.clone());
+        let mock_socket = tokio_test::io::Builder::new()
+            .write(&initial_handshake.serialise())
+            .read(&response_handshake.serialise())
+            .read(&bitfield_message)
+            .build();
+        let client = Client::new(mock_socket, info_hash.clone(), their_peer_id)
+            .await
+            .unwrap();
+
+        let expected_bitfield = Bitfield::new(payload);
+        assert!(client.choked);
+        assert_eq!(client.peer_id, their_peer_id);
+        assert_eq!(client.info_hash, info_hash);
+        assert_eq!(client.bitfield, expected_bitfield);
     }
 }
