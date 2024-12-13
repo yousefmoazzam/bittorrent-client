@@ -1,6 +1,7 @@
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 
 use crate::handshake::Handshake;
+use crate::message::{Bitfield, Message};
 use crate::PSTR;
 
 const HANDSHAKE_BYTES_LEN: usize = 68;
@@ -10,11 +11,13 @@ pub struct Client;
 
 impl Client {
     /// Send handshake and receive bitfield message from peer
-    pub async fn new<T>(socket: T, info_hash: Vec<u8>, peer_id: &str) -> std::io::Result<()>
+    pub async fn new<T>(mut socket: T, info_hash: Vec<u8>, peer_id: &str) -> std::io::Result<()>
     where
         T: AsyncRead + AsyncWrite + Unpin,
     {
-        Client::handshake(socket, info_hash, peer_id).await
+        Client::handshake(&mut socket, info_hash, peer_id).await?;
+        Client::receive_bitfield(&mut socket).await?;
+        Ok(())
     }
 
     /// Send initial handshake to peer
@@ -50,6 +53,17 @@ impl Client {
                 );
                 Err(std::io::Error::other(msg))
             }
+        }
+    }
+
+    /// Receive initial bitfield message from peer
+    async fn receive_bitfield<T>(socket: &mut T) -> std::io::Result<Bitfield>
+    where
+        T: AsyncRead + Unpin,
+    {
+        match Message::new(socket).await? {
+            Message::Bitfield(_) => todo!(),
+            _ => Err(std::io::Error::other("First message not bitfield")),
         }
     }
 }
@@ -93,6 +107,30 @@ mod tests {
                 .collect::<Vec<String>>()
                 .join(""),
         );
+        assert!(res.is_err_and(|val| val.to_string() == expected_err_msg));
+    }
+
+    #[tokio::test]
+    async fn return_error_if_first_message_is_not_a_bitfield() {
+        let info_hash = (0x00..0x14).collect::<Vec<_>>();
+        let their_peer_id = "-DEF123-efgh12345678";
+
+        let initial_handshake = Handshake::new(PSTR.to_string(), info_hash.clone(), PEER_ID.into());
+        let response_handshake =
+            Handshake::new(PSTR.to_string(), info_hash.clone(), their_peer_id.into());
+        let len: u32 = 1;
+        let id = 0x03;
+        let mut incorrect_first_message_data = u32::to_be_bytes(len).to_vec();
+        incorrect_first_message_data.push(id);
+
+        let mock_socket = tokio_test::io::Builder::new()
+            .write(&initial_handshake.serialise())
+            .read(&response_handshake.serialise())
+            .read(&incorrect_first_message_data[..])
+            .build();
+        let res = Client::new(mock_socket, info_hash.clone(), PEER_ID).await;
+
+        let expected_err_msg = "First message not bitfield";
         assert!(res.is_err_and(|val| val.to_string() == expected_err_msg));
     }
 }
