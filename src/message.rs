@@ -175,6 +175,13 @@ impl Message {
                 buf.push(3);
                 buf
             }
+            Message::Have(index) => {
+                let len = 1 + 8;
+                let mut buf = u32::to_be_bytes(len).to_vec();
+                buf.push(4);
+                buf.append(&mut u64::to_be_bytes(*index).to_vec());
+                buf
+            }
             _ => todo!(),
         }
     }
@@ -407,6 +414,18 @@ mod tests {
         let id = 3;
         let mut expected_buf = u32::to_be_bytes(len).to_vec();
         expected_buf.push(id);
+        assert_eq!(message.serialise(), expected_buf);
+    }
+
+    #[test]
+    fn serialise_have_message() {
+        let index = 10;
+        let message = Message::Have(index);
+        let len = 1 + 8;
+        let id = 4;
+        let mut expected_buf = u32::to_be_bytes(len).to_vec();
+        expected_buf.push(id);
+        expected_buf.append(&mut u64::to_be_bytes(index).to_vec());
         assert_eq!(message.serialise(), expected_buf);
     }
 
