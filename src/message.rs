@@ -65,7 +65,7 @@ pub enum Message {
 
 impl Message {
     /// Deserialise raw bytes from socket to [`Message`]
-    pub async fn deserialise<T>(socket: T) -> std::io::Result<Message>
+    pub async fn deserialise<T>(socket: &mut T) -> std::io::Result<Message>
     where
         T: AsyncRead + Unpin,
     {
@@ -239,8 +239,8 @@ mod tests {
         let len: u32 = 0;
         let buf = u32::to_be_bytes(len).to_vec();
         let expected_message = Message::KeepAlive;
-        let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
-        let res = Message::deserialise(mock_socket).await;
+        let mut mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
+        let res = Message::deserialise(&mut mock_socket).await;
         assert!(res.is_ok_and(|message| message == expected_message))
     }
 
@@ -251,8 +251,8 @@ mod tests {
         let mut buf = u32::to_be_bytes(len).to_vec();
         buf.push(id);
         let expected_message = Message::Choke;
-        let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
-        let res = Message::deserialise(mock_socket).await;
+        let mut mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
+        let res = Message::deserialise(&mut mock_socket).await;
         assert!(res.is_ok_and(|message| message == expected_message));
     }
 
@@ -263,8 +263,8 @@ mod tests {
         let mut buf = u32::to_be_bytes(len).to_vec();
         buf.push(id);
         let expected_message = Message::Unchoke;
-        let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
-        let res = Message::deserialise(mock_socket).await;
+        let mut mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
+        let res = Message::deserialise(&mut mock_socket).await;
         assert!(res.is_ok_and(|message| message == expected_message));
     }
 
@@ -275,8 +275,8 @@ mod tests {
         let mut buf = u32::to_be_bytes(len).to_vec();
         buf.push(id);
         let expected_message = Message::Interested;
-        let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
-        let res = Message::deserialise(mock_socket).await;
+        let mut mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
+        let res = Message::deserialise(&mut mock_socket).await;
         assert!(res.is_ok_and(|message| message == expected_message));
     }
 
@@ -287,8 +287,8 @@ mod tests {
         let mut buf = u32::to_be_bytes(len).to_vec();
         buf.push(id);
         let expected_message = Message::NotInterested;
-        let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
-        let res = Message::deserialise(mock_socket).await;
+        let mut mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
+        let res = Message::deserialise(&mut mock_socket).await;
         assert!(res.is_ok_and(|message| message == expected_message));
     }
 
@@ -301,8 +301,8 @@ mod tests {
         buf.push(id);
         buf.append(&mut u64::to_be_bytes(index).to_vec());
         let expected_message = Message::Have(index);
-        let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
-        let res = Message::deserialise(mock_socket).await;
+        let mut mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
+        let res = Message::deserialise(&mut mock_socket).await;
         assert!(res.is_ok_and(|message| message == expected_message));
     }
 
@@ -316,8 +316,8 @@ mod tests {
         buf.append(&mut payload.clone());
         let bitfield = Bitfield::new(payload);
         let expected_message = Message::Bitfield(bitfield);
-        let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
-        let res = Message::deserialise(mock_socket).await;
+        let mut mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
+        let res = Message::deserialise(&mut mock_socket).await;
         assert!(res.is_ok_and(|message| message == expected_message));
     }
 
@@ -338,8 +338,8 @@ mod tests {
             begin,
             length,
         };
-        let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
-        let res = Message::deserialise(mock_socket).await;
+        let mut mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
+        let res = Message::deserialise(&mut mock_socket).await;
         assert!(res.is_ok_and(|message| message == expected_message));
     }
 
@@ -360,8 +360,8 @@ mod tests {
             begin,
             block,
         };
-        let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
-        let res = Message::deserialise(mock_socket).await;
+        let mut mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
+        let res = Message::deserialise(&mut mock_socket).await;
         assert!(res.is_ok_and(|message| message == expected_message));
     }
 
@@ -382,8 +382,8 @@ mod tests {
             begin,
             length,
         };
-        let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
-        let res = Message::deserialise(mock_socket).await;
+        let mut mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
+        let res = Message::deserialise(&mut mock_socket).await;
         assert!(res.is_ok_and(|message| message == expected_message));
     }
 
@@ -393,8 +393,8 @@ mod tests {
         let id = 0x04;
         let mut buf = u32::to_be_bytes(len).to_vec();
         buf.push(id);
-        let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
-        let res = Message::deserialise(mock_socket).await;
+        let mut mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
+        let res = Message::deserialise(&mut mock_socket).await;
         let expected_err_msg = "Invalid ID for single byte message: 4";
         assert!(res.is_err_and(|msg| msg.to_string() == expected_err_msg));
     }
@@ -406,8 +406,8 @@ mod tests {
         let mut buf = u32::to_be_bytes(len).to_vec();
         buf.push(id);
         buf.append(&mut [0; 8].to_vec());
-        let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
-        let res = Message::deserialise(mock_socket).await;
+        let mut mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
+        let res = Message::deserialise(&mut mock_socket).await;
         let expected_err_msg = "Invalid message ID for message containing non-zero payload: 1";
         assert!(res.is_err_and(|msg| msg.to_string() == expected_err_msg));
     }
