@@ -215,7 +215,19 @@ impl Message {
                 buf.append(&mut block);
                 buf
             }
-            _ => todo!(),
+            Message::Cancel {
+                index,
+                begin,
+                length,
+            } => {
+                let len = 1 + (3 * 8);
+                let mut buf = u32::to_be_bytes(len).to_vec();
+                buf.push(8);
+                buf.append(&mut u64::to_be_bytes(index).to_vec());
+                buf.append(&mut u64::to_be_bytes(begin).to_vec());
+                buf.append(&mut u64::to_be_bytes(length).to_vec());
+                buf
+            }
         }
     }
 }
@@ -511,6 +523,26 @@ mod tests {
             index,
             begin,
             block,
+        };
+        assert_eq!(message.serialise(), expected_buf);
+    }
+
+    #[test]
+    fn serialise_cancel_message() {
+        let len = 1 + (3 * 8);
+        let id = 8;
+        let index = 30;
+        let begin = 100;
+        let length = 200;
+        let mut expected_buf = u32::to_be_bytes(len).to_vec();
+        expected_buf.push(id);
+        expected_buf.append(&mut u64::to_be_bytes(index).to_vec());
+        expected_buf.append(&mut u64::to_be_bytes(begin).to_vec());
+        expected_buf.append(&mut u64::to_be_bytes(length).to_vec());
+        let message = Message::Cancel {
+            index,
+            begin,
+            length,
         };
         assert_eq!(message.serialise(), expected_buf);
     }
