@@ -202,6 +202,19 @@ impl Message {
                 buf.append(&mut u64::to_be_bytes(length).to_vec());
                 buf
             }
+            Message::Piece {
+                index,
+                begin,
+                mut block,
+            } => {
+                let len = 1 + 8 + 8 + block.len() as u32;
+                let mut buf = u32::to_be_bytes(len).to_vec();
+                buf.push(7);
+                buf.append(&mut u64::to_be_bytes(index).to_vec());
+                buf.append(&mut u64::to_be_bytes(begin).to_vec());
+                buf.append(&mut block);
+                buf
+            }
             _ => todo!(),
         }
     }
@@ -478,6 +491,26 @@ mod tests {
             index,
             begin,
             length: block_len,
+        };
+        assert_eq!(message.serialise(), expected_buf);
+    }
+
+    #[test]
+    fn serialise_piece_message() {
+        let id = 7;
+        let index = 30;
+        let begin = 100;
+        let block = (0x00..0xFF).collect::<Vec<u8>>();
+        let len = 1 + 8 + 8 + block.len() as u32;
+        let mut expected_buf = u32::to_be_bytes(len).to_vec();
+        expected_buf.push(id);
+        expected_buf.append(&mut u64::to_be_bytes(index).to_vec());
+        expected_buf.append(&mut u64::to_be_bytes(begin).to_vec());
+        expected_buf.append(&mut block.clone());
+        let message = Message::Piece {
+            index,
+            begin,
+            block,
         };
         assert_eq!(message.serialise(), expected_buf);
     }
