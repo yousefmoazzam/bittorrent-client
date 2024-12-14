@@ -155,6 +155,11 @@ impl Message {
     pub fn serialise(&self) -> Vec<u8> {
         match self {
             Message::KeepAlive => u32::to_be_bytes(0).to_vec(),
+            Message::Choke => {
+                let mut buf = u32::to_be_bytes(1).to_vec();
+                buf.push(0);
+                buf
+            }
             _ => todo!(),
         }
     }
@@ -347,6 +352,16 @@ mod tests {
         let message = Message::KeepAlive;
         let len: u32 = 0;
         let expected_buf = u32::to_be_bytes(len).to_vec();
+        assert_eq!(message.serialise(), expected_buf);
+    }
+
+    #[test]
+    fn serialise_choke_message() {
+        let message = Message::Choke;
+        let len = 1;
+        let id = 0;
+        let mut expected_buf = u32::to_be_bytes(len).to_vec();
+        expected_buf.push(id);
         assert_eq!(message.serialise(), expected_buf);
     }
 
