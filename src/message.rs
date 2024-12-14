@@ -1,7 +1,5 @@
 use tokio::io::{AsyncRead, AsyncReadExt, BufReader};
 
-const ID_INDEX: u8 = 4;
-
 const BITS_IN_BYTE: usize = 8;
 
 /// Wrapper type for bitfield message payload
