@@ -57,6 +57,17 @@ pub struct Piece {
     block: Vec<u8>,
 }
 
+/// Wrapper type for cancel message payload
+#[derive(Debug, PartialEq)]
+pub struct Cancel {
+    /// Index of piece within file
+    index: u64,
+    /// Index of block within piece
+    begin: u64,
+    /// Length of block
+    length: u64,
+}
+
 /// Peer message types
 #[derive(Debug, PartialEq)]
 pub enum Message {
@@ -74,11 +85,7 @@ pub enum Message {
     /// Send a subset of a piece (a block)
     Piece(Piece),
     /// Cancel a request for a block
-    Cancel {
-        index: u64,
-        begin: u64,
-        length: u64,
-    },
+    Cancel(Cancel),
 }
 
 impl Message {
@@ -138,11 +145,11 @@ impl Message {
                         length,
                     }))
                 } else {
-                    Ok(Message::Cancel {
+                    Ok(Message::Cancel(Cancel {
                         index,
                         begin,
                         length,
-                    })
+                    }))
                 }
             }
             0x07 => {
@@ -231,11 +238,11 @@ impl Message {
                 buf.append(&mut block);
                 buf
             }
-            Message::Cancel {
+            Message::Cancel(Cancel {
                 index,
                 begin,
                 length,
-            } => {
+            }) => {
                 let len = 1 + (3 * 8);
                 let mut buf = u32::to_be_bytes(len).to_vec();
                 buf.push(8);
@@ -395,11 +402,11 @@ mod tests {
         buf.append(&mut u64::to_be_bytes(index).to_vec());
         buf.append(&mut u64::to_be_bytes(begin).to_vec());
         buf.append(&mut u64::to_be_bytes(length).to_vec());
-        let expected_message = Message::Cancel {
+        let expected_message = Message::Cancel(Cancel {
             index,
             begin,
             length,
-        };
+        });
         let mut mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
         let res = Message::deserialise(&mut mock_socket).await;
         assert!(res.is_ok_and(|message| message == expected_message));
@@ -555,11 +562,11 @@ mod tests {
         expected_buf.append(&mut u64::to_be_bytes(index).to_vec());
         expected_buf.append(&mut u64::to_be_bytes(begin).to_vec());
         expected_buf.append(&mut u64::to_be_bytes(length).to_vec());
-        let message = Message::Cancel {
+        let message = Message::Cancel(Cancel {
             index,
             begin,
             length,
-        };
+        });
         assert_eq!(message.serialise(), expected_buf);
     }
 
