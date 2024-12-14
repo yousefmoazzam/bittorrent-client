@@ -2,6 +2,10 @@ use tokio::io::{AsyncRead, AsyncReadExt, BufReader};
 
 const BITS_IN_BYTE: usize = 8;
 
+/// Wrapper type for have message payload
+#[derive(Debug, PartialEq)]
+pub struct Have(u64);
+
 /// Wrapper type for bitfield message payload
 #[derive(Debug, PartialEq)]
 pub struct Bitfield {
@@ -31,6 +35,39 @@ impl Bitfield {
     }
 }
 
+/// Wrapper type for request message payload
+#[derive(Debug, PartialEq)]
+pub struct Request {
+    /// Index of piece within file
+    index: u64,
+    /// Index of block within piece
+    begin: u64,
+    /// Length of block
+    length: u64,
+}
+
+/// Wrapper type for piece message payload
+#[derive(Debug, PartialEq)]
+pub struct Piece {
+    /// Index of piece within file
+    index: u64,
+    /// Index of block within piece
+    begin: u64,
+    /// Block data
+    block: Vec<u8>,
+}
+
+/// Wrapper type for cancel message payload
+#[derive(Debug, PartialEq)]
+pub struct Cancel {
+    /// Index of piece within file
+    index: u64,
+    /// Index of block within piece
+    begin: u64,
+    /// Length of block
+    length: u64,
+}
+
 /// Peer message types
 #[derive(Debug, PartialEq)]
 pub enum Message {
@@ -40,27 +77,15 @@ pub enum Message {
     Interested,
     NotInterested,
     /// Index of piece the downloader has completed and checked the hash of
-    Have(u64),
+    Have(Have),
     /// Describes which pieces (by index) the downloader has sent
     Bitfield(Bitfield),
     /// Request a subset of a piece (a block)
-    Request {
-        index: u64,
-        begin: u64,
-        length: u64,
-    },
+    Request(Request),
     /// Send a subset of a piece (a block)
-    Piece {
-        index: u64,
-        begin: u64,
-        block: Vec<u8>,
-    },
+    Piece(Piece),
     /// Cancel a request for a block
-    Cancel {
-        index: u64,
-        begin: u64,
-        length: u64,
-    },
+    Cancel(Cancel),
 }
 
 impl Message {
@@ -97,7 +122,7 @@ impl Message {
                 let index = u64::from_be_bytes([
                     bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
                 ]);
-                Ok(Message::Have(index))
+                Ok(Message::Have(Have(index)))
             }
             0x05 => Ok(Message::Bitfield(Bitfield::new(bytes.to_vec()))),
             0x06 | 0x08 => {
@@ -114,17 +139,17 @@ impl Message {
                 ]);
 
                 if id == 0x06 {
-                    Ok(Message::Request {
+                    Ok(Message::Request(Request {
                         index,
                         begin,
                         length,
-                    })
+                    }))
                 } else {
-                    Ok(Message::Cancel {
+                    Ok(Message::Cancel(Cancel {
                         index,
                         begin,
                         length,
-                    })
+                    }))
                 }
             }
             0x07 => {
@@ -136,11 +161,11 @@ impl Message {
                     bytes[15],
                 ]);
                 let block = bytes[16..].to_vec();
-                Ok(Message::Piece {
+                Ok(Message::Piece(Piece {
                     index,
                     begin,
                     block,
-                })
+                }))
             }
             _ => Err(std::io::Error::other(format!(
                 "Invalid message ID for message containing non-zero payload: {}",
@@ -173,7 +198,7 @@ impl Message {
                 buf.push(3);
                 buf
             }
-            Message::Have(index) => {
+            Message::Have(Have(index)) => {
                 let len = 1 + 8;
                 let mut buf = u32::to_be_bytes(len).to_vec();
                 buf.push(4);
@@ -187,11 +212,11 @@ impl Message {
                 buf.append(&mut bitfield.data);
                 buf
             }
-            Message::Request {
+            Message::Request(Request {
                 index,
                 begin,
                 length,
-            } => {
+            }) => {
                 let len = 1 + (3 * 8);
                 let mut buf = u32::to_be_bytes(len).to_vec();
                 buf.push(6);
@@ -200,11 +225,11 @@ impl Message {
                 buf.append(&mut u64::to_be_bytes(length).to_vec());
                 buf
             }
-            Message::Piece {
+            Message::Piece(Piece {
                 index,
                 begin,
                 mut block,
-            } => {
+            }) => {
                 let len = 1 + 8 + 8 + block.len() as u32;
                 let mut buf = u32::to_be_bytes(len).to_vec();
                 buf.push(7);
@@ -213,11 +238,11 @@ impl Message {
                 buf.append(&mut block);
                 buf
             }
-            Message::Cancel {
+            Message::Cancel(Cancel {
                 index,
                 begin,
                 length,
-            } => {
+            }) => {
                 let len = 1 + (3 * 8);
                 let mut buf = u32::to_be_bytes(len).to_vec();
                 buf.push(8);
@@ -300,7 +325,7 @@ mod tests {
         let mut buf = u32::to_be_bytes(len).to_vec();
         buf.push(id);
         buf.append(&mut u64::to_be_bytes(index).to_vec());
-        let expected_message = Message::Have(index);
+        let expected_message = Message::Have(Have(index));
         let mut mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
         let res = Message::deserialise(&mut mock_socket).await;
         assert!(res.is_ok_and(|message| message == expected_message));
@@ -333,11 +358,11 @@ mod tests {
         buf.append(&mut u64::to_be_bytes(index).to_vec());
         buf.append(&mut u64::to_be_bytes(begin).to_vec());
         buf.append(&mut u64::to_be_bytes(length).to_vec());
-        let expected_message = Message::Request {
+        let expected_message = Message::Request(Request {
             index,
             begin,
             length,
-        };
+        });
         let mut mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
         let res = Message::deserialise(&mut mock_socket).await;
         assert!(res.is_ok_and(|message| message == expected_message));
@@ -355,11 +380,11 @@ mod tests {
         buf.append(&mut u64::to_be_bytes(index).to_vec());
         buf.append(&mut u64::to_be_bytes(begin).to_vec());
         buf.append(&mut block.clone());
-        let expected_message = Message::Piece {
+        let expected_message = Message::Piece(Piece {
             index,
             begin,
             block,
-        };
+        });
         let mut mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
         let res = Message::deserialise(&mut mock_socket).await;
         assert!(res.is_ok_and(|message| message == expected_message));
@@ -377,11 +402,11 @@ mod tests {
         buf.append(&mut u64::to_be_bytes(index).to_vec());
         buf.append(&mut u64::to_be_bytes(begin).to_vec());
         buf.append(&mut u64::to_be_bytes(length).to_vec());
-        let expected_message = Message::Cancel {
+        let expected_message = Message::Cancel(Cancel {
             index,
             begin,
             length,
-        };
+        });
         let mut mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
         let res = Message::deserialise(&mut mock_socket).await;
         assert!(res.is_ok_and(|message| message == expected_message));
@@ -463,7 +488,7 @@ mod tests {
     #[test]
     fn serialise_have_message() {
         let index = 10;
-        let message = Message::Have(index);
+        let message = Message::Have(Have(index));
         let len = 1 + 8;
         let id = 4;
         let mut expected_buf = u32::to_be_bytes(len).to_vec();
@@ -497,11 +522,11 @@ mod tests {
         expected_buf.append(&mut u64::to_be_bytes(index).to_vec());
         expected_buf.append(&mut u64::to_be_bytes(begin).to_vec());
         expected_buf.append(&mut u64::to_be_bytes(block_len).to_vec());
-        let message = Message::Request {
+        let message = Message::Request(Request {
             index,
             begin,
             length: block_len,
-        };
+        });
         assert_eq!(message.serialise(), expected_buf);
     }
 
@@ -517,11 +542,11 @@ mod tests {
         expected_buf.append(&mut u64::to_be_bytes(index).to_vec());
         expected_buf.append(&mut u64::to_be_bytes(begin).to_vec());
         expected_buf.append(&mut block.clone());
-        let message = Message::Piece {
+        let message = Message::Piece(Piece {
             index,
             begin,
             block,
-        };
+        });
         assert_eq!(message.serialise(), expected_buf);
     }
 
@@ -537,11 +562,11 @@ mod tests {
         expected_buf.append(&mut u64::to_be_bytes(index).to_vec());
         expected_buf.append(&mut u64::to_be_bytes(begin).to_vec());
         expected_buf.append(&mut u64::to_be_bytes(length).to_vec());
-        let message = Message::Cancel {
+        let message = Message::Cancel(Cancel {
             index,
             begin,
             length,
-        };
+        });
         assert_eq!(message.serialise(), expected_buf);
     }
 
