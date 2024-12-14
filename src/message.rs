@@ -239,7 +239,7 @@ mod tests {
     #[tokio::test]
     async fn parse_keep_alive_message() {
         let len: u32 = 0;
-        let buf = u32::to_le_bytes(len).to_vec();
+        let buf = u32::to_be_bytes(len).to_vec();
         let expected_message = Message::KeepAlive;
         let mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
         let res = Message::deserialise(mock_socket).await;
