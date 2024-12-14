@@ -165,6 +165,11 @@ impl Message {
                 buf.push(1);
                 buf
             }
+            Message::Interested => {
+                let mut buf = u32::to_be_bytes(1).to_vec();
+                buf.push(2);
+                buf
+            }
             _ => todo!(),
         }
     }
@@ -375,6 +380,16 @@ mod tests {
         let message = Message::Unchoke;
         let len = 1;
         let id = 1;
+        let mut expected_buf = u32::to_be_bytes(len).to_vec();
+        expected_buf.push(id);
+        assert_eq!(message.serialise(), expected_buf);
+    }
+
+    #[test]
+    fn serialise_interested_message() {
+        let message = Message::Interested;
+        let len = 1;
+        let id = 2;
         let mut expected_buf = u32::to_be_bytes(len).to_vec();
         expected_buf.push(id);
         assert_eq!(message.serialise(), expected_buf);
