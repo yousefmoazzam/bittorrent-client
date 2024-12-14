@@ -189,6 +189,19 @@ impl Message {
                 buf.append(&mut bitfield.data);
                 buf
             }
+            Message::Request {
+                index,
+                begin,
+                length,
+            } => {
+                let len = 1 + (3 * 8);
+                let mut buf = u32::to_be_bytes(len).to_vec();
+                buf.push(6);
+                buf.append(&mut u64::to_be_bytes(index).to_vec());
+                buf.append(&mut u64::to_be_bytes(begin).to_vec());
+                buf.append(&mut u64::to_be_bytes(length).to_vec());
+                buf
+            }
             _ => todo!(),
         }
     }
@@ -446,6 +459,26 @@ mod tests {
         let mut expected_buf = u32::to_be_bytes(len).to_vec();
         expected_buf.push(id);
         expected_buf.append(&mut data);
+        assert_eq!(message.serialise(), expected_buf);
+    }
+
+    #[test]
+    fn serialise_request_message() {
+        let id = 6;
+        let index = 2;
+        let begin = 0;
+        let block_len = 64;
+        let len = 1 + (3 * 8);
+        let mut expected_buf = u32::to_be_bytes(len).to_vec();
+        expected_buf.push(id);
+        expected_buf.append(&mut u64::to_be_bytes(index).to_vec());
+        expected_buf.append(&mut u64::to_be_bytes(begin).to_vec());
+        expected_buf.append(&mut u64::to_be_bytes(block_len).to_vec());
+        let message = Message::Request {
+            index,
+            begin,
+            length: block_len,
+        };
         assert_eq!(message.serialise(), expected_buf);
     }
 
