@@ -152,7 +152,7 @@ impl Message {
     }
 
     /// Serialise [`Message`] to raw bytes
-    pub fn serialise(&self) -> Vec<u8> {
+    pub fn serialise(self) -> Vec<u8> {
         match self {
             Message::KeepAlive => u32::to_be_bytes(0).to_vec(),
             Message::Choke => {
@@ -179,7 +179,14 @@ impl Message {
                 let len = 1 + 8;
                 let mut buf = u32::to_be_bytes(len).to_vec();
                 buf.push(4);
-                buf.append(&mut u64::to_be_bytes(*index).to_vec());
+                buf.append(&mut u64::to_be_bytes(index).to_vec());
+                buf
+            }
+            Message::Bitfield(mut bitfield) => {
+                let len = 1 + bitfield.data.len() as u32;
+                let mut buf = u32::to_be_bytes(len).to_vec();
+                buf.push(5);
+                buf.append(&mut bitfield.data);
                 buf
             }
             _ => todo!(),
@@ -426,6 +433,19 @@ mod tests {
         let mut expected_buf = u32::to_be_bytes(len).to_vec();
         expected_buf.push(id);
         expected_buf.append(&mut u64::to_be_bytes(index).to_vec());
+        assert_eq!(message.serialise(), expected_buf);
+    }
+
+    #[test]
+    fn serialise_bitfield_message() {
+        let mut data = vec![0x03, 0x01];
+        let len = 1 + data.len() as u32;
+        let bitfield = Bitfield::new(data.clone());
+        let id = 5;
+        let message = Message::Bitfield(bitfield);
+        let mut expected_buf = u32::to_be_bytes(len).to_vec();
+        expected_buf.push(id);
+        expected_buf.append(&mut data);
         assert_eq!(message.serialise(), expected_buf);
     }
 
