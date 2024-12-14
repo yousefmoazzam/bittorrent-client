@@ -86,6 +86,11 @@ where
     pub async fn receive(&mut self) -> std::io::Result<Message> {
         Message::deserialise(&mut self.socket).await
     }
+
+    /// Send message to peer
+    pub async fn send(&mut self, message: Message) -> std::io::Result<()> {
+        self.socket.write_all(&message.serialise()).await
+    }
 }
 
 #[cfg(test)]
@@ -204,5 +209,25 @@ mod tests {
             .receive()
             .await
             .is_ok_and(|msg| msg == expected_message));
+    }
+
+    #[tokio::test]
+    async fn client_sends_correct_message_data_to_peer() {
+        let info_hash = (0x00..0x14).collect::<Vec<_>>();
+        let their_peer_id = "-DEF123-efgh12345678";
+        let message = Message::Unchoke;
+        let len = 1;
+        let id = 1;
+        let mut expected_buf = u32::to_be_bytes(len).to_vec();
+        expected_buf.push(id);
+        let mock_socket = tokio_test::io::Builder::new().write(&expected_buf).build();
+        let mut client = Client {
+            socket: mock_socket,
+            peer_id: their_peer_id.to_string(),
+            choked: true,
+            bitfield: Bitfield::new(vec![0x05]),
+            info_hash,
+        };
+        assert!(client.send(message).await.is_ok());
     }
 }
