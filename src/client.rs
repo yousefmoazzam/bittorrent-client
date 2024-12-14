@@ -81,6 +81,11 @@ where
             _ => Err(std::io::Error::other("First message not bitfield")),
         }
     }
+
+    /// Receive message from peer
+    pub async fn receive(&mut self) -> std::io::Result<Message> {
+        Message::deserialise(&mut self.socket).await
+    }
 }
 
 #[cfg(test)]
@@ -175,5 +180,29 @@ mod tests {
         assert_eq!(client.peer_id, their_peer_id);
         assert_eq!(client.info_hash, info_hash);
         assert_eq!(client.bitfield, expected_bitfield);
+    }
+
+    #[tokio::test]
+    async fn client_receives_correct_message_from_peer() {
+        let info_hash = (0x00..0x14).collect::<Vec<_>>();
+        let their_peer_id = "-DEF123-efgh12345678";
+
+        let len: u32 = 1;
+        let id = 0x01;
+        let mut buf = u32::to_be_bytes(len).to_vec();
+        buf.push(id);
+        let expected_message = Message::Unchoke;
+        let mock_socket = tokio_test::io::Builder::new().read(&buf).build();
+        let mut client = Client {
+            socket: mock_socket,
+            peer_id: their_peer_id.to_string(),
+            choked: true,
+            bitfield: Bitfield::new(vec![0x05]),
+            info_hash,
+        };
+        assert!(client
+            .receive()
+            .await
+            .is_ok_and(|msg| msg == expected_message));
     }
 }
