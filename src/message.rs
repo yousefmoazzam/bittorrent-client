@@ -35,6 +35,17 @@ impl Bitfield {
     }
 }
 
+/// Wrapper type for request message payload
+#[derive(Debug, PartialEq)]
+pub struct Request {
+    /// Index of piece within file
+    index: u64,
+    /// Index of block within piece
+    begin: u64,
+    /// Length of block
+    length: u64,
+}
+
 /// Peer message types
 #[derive(Debug, PartialEq)]
 pub enum Message {
@@ -48,11 +59,7 @@ pub enum Message {
     /// Describes which pieces (by index) the downloader has sent
     Bitfield(Bitfield),
     /// Request a subset of a piece (a block)
-    Request {
-        index: u64,
-        begin: u64,
-        length: u64,
-    },
+    Request(Request),
     /// Send a subset of a piece (a block)
     Piece {
         index: u64,
@@ -118,11 +125,11 @@ impl Message {
                 ]);
 
                 if id == 0x06 {
-                    Ok(Message::Request {
+                    Ok(Message::Request(Request {
                         index,
                         begin,
                         length,
-                    })
+                    }))
                 } else {
                     Ok(Message::Cancel {
                         index,
@@ -191,11 +198,11 @@ impl Message {
                 buf.append(&mut bitfield.data);
                 buf
             }
-            Message::Request {
+            Message::Request(Request {
                 index,
                 begin,
                 length,
-            } => {
+            }) => {
                 let len = 1 + (3 * 8);
                 let mut buf = u32::to_be_bytes(len).to_vec();
                 buf.push(6);
@@ -337,11 +344,11 @@ mod tests {
         buf.append(&mut u64::to_be_bytes(index).to_vec());
         buf.append(&mut u64::to_be_bytes(begin).to_vec());
         buf.append(&mut u64::to_be_bytes(length).to_vec());
-        let expected_message = Message::Request {
+        let expected_message = Message::Request(Request {
             index,
             begin,
             length,
-        };
+        });
         let mut mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
         let res = Message::deserialise(&mut mock_socket).await;
         assert!(res.is_ok_and(|message| message == expected_message));
@@ -501,11 +508,11 @@ mod tests {
         expected_buf.append(&mut u64::to_be_bytes(index).to_vec());
         expected_buf.append(&mut u64::to_be_bytes(begin).to_vec());
         expected_buf.append(&mut u64::to_be_bytes(block_len).to_vec());
-        let message = Message::Request {
+        let message = Message::Request(Request {
             index,
             begin,
             length: block_len,
-        };
+        });
         assert_eq!(message.serialise(), expected_buf);
     }
 
