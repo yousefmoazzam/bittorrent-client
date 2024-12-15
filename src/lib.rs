@@ -5,6 +5,7 @@ pub mod decode;
 pub mod handshake;
 pub mod message;
 pub mod metainfo;
+pub mod piece;
 pub mod tracker;
 
 pub const PEER_ID: &str = "-ABC123-abcd12345678";
