@@ -46,10 +46,10 @@ impl Metainfo {
                     .expect("`info` key has been confirmed to exist in hashmap");
                 match info_decoded {
                     BencodeType::ByteString(_) | BencodeType::Integer(_) | BencodeType::List(_) => {
-                        return Err(
+                        Err(
                             "Invalid input, the following key's value has an incorrect type: info"
                                 .to_string(),
-                        );
+                        )
                     }
                     BencodeType::Dict(_) => Ok(Metainfo {
                         announce,
@@ -144,7 +144,7 @@ impl Info {
     fn piece(&self, number: usize) -> &str {
         let start = number * SHA1_HASH_HEX_OUTPUT_SIZE;
         let stop = start + SHA1_HASH_HEX_OUTPUT_SIZE;
-        return &self.pieces[start..stop];
+        &self.pieces[start..stop]
     }
 }
 
