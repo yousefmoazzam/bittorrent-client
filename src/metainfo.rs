@@ -157,7 +157,7 @@ mod tests {
         let incorrect_input = BencodeType::ByteString("hello".to_string());
         let res = Metainfo::new(incorrect_input);
         let expected_err_msg = "Invalid input, metainfo file must be a dict";
-        assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg))
+        assert!(res.is_err_and(|msg| msg == expected_err_msg))
     }
 
     #[test]
@@ -168,7 +168,7 @@ mod tests {
         let incomplete_data = BencodeType::Dict(map);
         let expected_err_msg = "Invalid input, metainfo dict missing the following key: announce";
         let res = Metainfo::new(incomplete_data);
-        assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg));
+        assert!(res.is_err_and(|msg| msg == expected_err_msg));
     }
 
     #[test]
@@ -179,7 +179,7 @@ mod tests {
         let incomplete_data = BencodeType::Dict(map);
         let expected_err_msg = "Invalid input, metainfo dict missing the following key: info";
         let res = Metainfo::new(incomplete_data);
-        assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg));
+        assert!(res.is_err_and(|msg| msg == expected_err_msg));
     }
 
     #[test]
@@ -193,7 +193,7 @@ mod tests {
         let expected_err_msg =
             "Invalid input, the following key's value has an incorrect type: announce";
         let res = Metainfo::new(data);
-        assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg));
+        assert!(res.is_err_and(|msg| msg == expected_err_msg));
     }
 
     #[test]
@@ -207,7 +207,7 @@ mod tests {
         let expected_err_msg =
             "Invalid input, the following key's value has an incorrect type: info";
         let res = Metainfo::new(data);
-        assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg));
+        assert!(res.is_err_and(|msg| msg == expected_err_msg));
     }
 
     #[test]
@@ -215,7 +215,7 @@ mod tests {
         let data = BencodeType::Dict(HashMap::new());
         let expected_err_msg = "Invalid info dict, the following key is missing: name";
         let res = Info::new(data);
-        assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg));
+        assert!(res.is_err_and(|msg| msg == expected_err_msg));
     }
 
     #[test]
@@ -228,7 +228,7 @@ mod tests {
         let data = BencodeType::Dict(map);
         let expected_err_msg = "Invalid info dict, the following key is missing: length";
         let res = Info::new(data);
-        assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg));
+        assert!(res.is_err_and(|msg| msg == expected_err_msg));
     }
 
     #[test]
@@ -242,7 +242,7 @@ mod tests {
         let data = BencodeType::Dict(map);
         let expected_err_msg = "Invalid info dict, the following key is missing: piece length";
         let res = Info::new(data);
-        assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg));
+        assert!(res.is_err_and(|msg| msg == expected_err_msg));
     }
 
     #[test]
@@ -257,7 +257,7 @@ mod tests {
         let data = BencodeType::Dict(map);
         let expected_err_msg = "Invalid info dict, the following key is missing: pieces";
         let res = Info::new(data);
-        assert_eq!(true, res.is_err_and(|msg| msg == expected_err_msg));
+        assert!(res.is_err_and(|msg| msg == expected_err_msg));
     }
 
     #[test]
