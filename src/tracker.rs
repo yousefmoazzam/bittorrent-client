@@ -1,10 +1,47 @@
 use std::net::Ipv4Addr;
 
+use reqwest::Url;
+
 use crate::BencodeType;
 
 const INTERVAL_KEY: &str = "interval";
 const PEERS_KEY: &str = "peers";
 const PEER_NO_OF_HEX_DIGITS: usize = 12;
+
+/// GET request to tracker
+pub struct Request {
+    /// URL to make GET request to tracker
+    pub url: Url,
+}
+
+impl Request {
+    /// Create request
+    pub fn new(
+        tracker_url: &str,
+        peer_id: &str,
+        port: u32,
+        info_hash: Vec<u8>,
+        file_length: usize,
+    ) -> Request {
+        let info_hash_str = info_hash
+            .iter()
+            .map(|byte| format!("%{:02x}", byte))
+            .collect::<Vec<String>>()
+            .join("");
+        let mut string_url = tracker_url.to_string();
+        string_url.push_str("?info_hash=");
+        string_url.push_str(&info_hash_str);
+        let mut url = Url::parse(&string_url).unwrap();
+        url.query_pairs_mut()
+            .append_pair("peer_id", peer_id)
+            .append_pair("port", &port.to_string())
+            .append_pair("uploaded", &0.to_string())
+            .append_pair("downloaded", &0.to_string())
+            .append_pair("compact", &1.to_string())
+            .append_pair("left", &file_length.to_string());
+        Request { url }
+    }
+}
 
 /// Tracker associated with file
 pub struct Tracker {
@@ -126,5 +163,39 @@ mod tests {
         let tracker = Tracker::new(response_dict);
         assert_eq!(interval, tracker.interval.try_into().unwrap());
         assert_eq!(2, tracker.peers.len());
+    }
+
+    #[test]
+    fn creating_tracker_request_produces_expected_url_for_get_request() {
+        let tracker_url = "http://a.b.org:1234/announce";
+        let info_hash = (0x00..0x14).collect::<Vec<u8>>();
+        let port = 6881;
+        let file_length = 128;
+        let request = Request::new(
+            tracker_url,
+            crate::PEER_ID,
+            port,
+            info_hash.clone(),
+            file_length,
+        );
+
+        let info_hash_str = info_hash
+            .iter()
+            .map(|byte| format!("%{:02x}", byte))
+            .collect::<Vec<String>>()
+            .join("");
+        let mut string_url = tracker_url.to_string();
+        string_url.push_str("?info_hash=");
+        string_url.push_str(&info_hash_str);
+        let mut expected_url = Url::parse(&string_url).unwrap();
+        expected_url
+            .query_pairs_mut()
+            .append_pair("peer_id", crate::PEER_ID)
+            .append_pair("port", &port.to_string())
+            .append_pair("uploaded", &0.to_string())
+            .append_pair("downloaded", &0.to_string())
+            .append_pair("compact", &1.to_string())
+            .append_pair("left", &file_length.to_string());
+        assert_eq!(request.url, expected_url);
     }
 }
