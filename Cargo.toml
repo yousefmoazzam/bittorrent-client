@@ -9,4 +9,5 @@ reqwest = "0.12.9"
 tokio = { version = "1.42.0", features = ["io-util", "macros", "net", "sync"] }
 
 [dev-dependencies]
+mockito = "1.6.1"
 tokio-test = "0.4.4"
