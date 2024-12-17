@@ -161,7 +161,10 @@ mod tests {
         map.insert("peers".to_string(), BencodeType::ByteString(peers_data));
         let response_dict = BencodeType::Dict(map);
         let tracker = Tracker::new(response_dict);
-        assert_eq!(interval, tracker.interval.try_into().unwrap());
+        assert_eq!(
+            interval,
+            TryInto::<i64>::try_into(tracker.interval).unwrap()
+        );
         assert_eq!(2, tracker.peers.len());
     }
 
