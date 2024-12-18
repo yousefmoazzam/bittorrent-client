@@ -41,6 +41,11 @@ impl Request {
             .append_pair("left", &file_length.to_string());
         Request { url }
     }
+
+    /// Send request
+    pub async fn send(self) {
+        let _ = reqwest::get(self.url).await;
+    }
 }
 
 /// Tracker associated with file
@@ -118,6 +123,8 @@ impl Peer {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+
+    use mockito::Matcher::UrlEncoded;
 
     use super::*;
 
@@ -200,5 +207,41 @@ mod tests {
             .append_pair("compact", &1.to_string())
             .append_pair("left", &file_length.to_string());
         assert_eq!(request.url, expected_url);
+    }
+
+    #[tokio::test]
+    async fn sent_tracker_get_request_is_received_by_tracker() {
+        let info_hash = (0x00..0x14).collect::<Vec<u8>>();
+        let port = 6881;
+        let file_length = 128;
+        let info_hash_str = info_hash
+            .iter()
+            .map(|byte| format!("%{:02x}", byte))
+            .collect::<Vec<String>>()
+            .join("");
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", "/")
+            .match_query(mockito::Matcher::AllOf(vec![
+                mockito::Matcher::Regex(format!("info_hash={}", info_hash_str)),
+                UrlEncoded("peer_id".to_string(), crate::PEER_ID.to_string()),
+                UrlEncoded("port".to_string(), port.to_string()),
+                UrlEncoded("uploaded".to_string(), 0.to_string()),
+                UrlEncoded("downloaded".to_string(), 0.to_string()),
+                UrlEncoded("compact".to_string(), 1.to_string()),
+                UrlEncoded("left".to_string(), file_length.to_string()),
+            ]))
+            .create();
+
+        Request::new(
+            &server.url(),
+            crate::PEER_ID,
+            port,
+            info_hash.clone(),
+            file_length,
+        )
+        .send()
+        .await;
+        mock.assert();
     }
 }
