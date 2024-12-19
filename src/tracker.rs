@@ -42,9 +42,10 @@ impl Request {
         Request { url }
     }
 
-    /// Send request
-    pub async fn send(self) {
-        let _ = reqwest::get(self.url).await;
+    /// Send request and return response body
+    pub async fn send(self) -> reqwest::Result<String> {
+        let response = reqwest::get(self.url).await?;
+        response.text().await
     }
 }
 
@@ -261,8 +262,45 @@ mod tests {
             file_length,
         )
         .send()
-        .await;
+        .await
+        .unwrap();
         mock.assert();
+    }
+
+    #[tokio::test]
+    async fn sent_request_returns_response_body() {
+        let info_hash = (0x00..0x14).collect::<Vec<u8>>();
+        let port = 6881;
+        let file_length = 128;
+        let info_hash_str = info_hash
+            .iter()
+            .map(|byte| format!("%{:02x}", byte))
+            .collect::<Vec<String>>()
+            .join("");
+
+        let key = "failure";
+        let value = "Some reason for query failure";
+        let bencoded_data = format!("d{}:{}{}:{}e", key.len(), key, value.len(), value);
+
+        let mut server = mockito::Server::new_async().await;
+        server
+            .mock("GET", "/")
+            .match_query(mockito::Matcher::AllOf(vec![
+                mockito::Matcher::Regex(format!("info_hash={}", info_hash_str)),
+                UrlEncoded("peer_id".to_string(), crate::PEER_ID.to_string()),
+                UrlEncoded("port".to_string(), port.to_string()),
+                UrlEncoded("uploaded".to_string(), 0.to_string()),
+                UrlEncoded("downloaded".to_string(), 0.to_string()),
+                UrlEncoded("compact".to_string(), 1.to_string()),
+                UrlEncoded("left".to_string(), file_length.to_string()),
+            ]))
+            .with_body(bencoded_data.clone())
+            .create();
+        let response = Request::new(&server.url(), crate::PEER_ID, port, info_hash, file_length)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response, bencoded_data);
     }
 
     #[test]
