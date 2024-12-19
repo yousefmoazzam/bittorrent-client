@@ -48,6 +48,31 @@ impl Request {
     }
 }
 
+/// Response from tracker
+pub enum Response {
+    /// Failed query
+    Failure(String),
+}
+
+impl Response {
+    /// Deserialise response message body
+    pub fn deserialise(data: &str) -> Response {
+        match crate::decode::decode(data) {
+            BencodeType::Dict(map) => {
+                if let Some(val) = map.get("failure") {
+                    match val {
+                        BencodeType::ByteString(msg) => Response::Failure(msg.to_string()),
+                        _ => todo!(),
+                    }
+                } else {
+                    todo!()
+                }
+            }
+            _ => todo!(),
+        }
+    }
+}
+
 /// Tracker associated with file
 pub struct Tracker {
     /// Interval (in seconds) at which to reconnect to tracker to refresh peer list
@@ -243,5 +268,16 @@ mod tests {
         .send()
         .await;
         mock.assert();
+    }
+
+    #[test]
+    fn create_error_variant_from_failure_response() {
+        let key = "failure";
+        let value = "Some reason for query failure";
+        let bencoded_data = format!("d{}:{}{}:{}e", key.len(), key, value.len(), value);
+        let response = Response::deserialise(&bencoded_data);
+        match response {
+            Response::Failure(msg) => assert_eq!(msg, value),
+        }
     }
 }
