@@ -52,6 +52,13 @@ impl Request {
 pub enum Response {
     /// Failed query
     Failure(String),
+    /// Successful query
+    Success {
+        /// Interval (in seconds) at which to reconnect to tracker to refresh peer list
+        interval: usize,
+        /// Peers of file reported by tracker
+        peers: Vec<Peer>,
+    },
 }
 
 impl Response {
@@ -61,45 +68,27 @@ impl Response {
             BencodeType::Dict(map) => {
                 if let Some(val) = map.get("failure") {
                     match val {
-                        BencodeType::ByteString(msg) => Response::Failure(msg.to_string()),
+                        BencodeType::ByteString(msg) => return Response::Failure(msg.to_string()),
                         _ => todo!(),
-                    }
-                } else {
-                    todo!()
-                }
-            }
-            _ => todo!(),
-        }
-    }
-}
+                    };
+                };
 
-/// Tracker associated with file
-pub struct Tracker {
-    /// Interval (in seconds) at which to reconnect to tracker to refresh peer list
-    pub interval: usize,
-    /// Peers of file reported by tracker
-    pub peers: Vec<Peer>,
-}
-
-impl Tracker {
-    pub fn new(data: BencodeType) -> Tracker {
-        match data {
-            BencodeType::Dict(mut map) => {
-                let interval: usize = match map.remove(INTERVAL_KEY).unwrap() {
-                    BencodeType::Integer(int) => int.try_into().unwrap(),
+                let interval: usize = match map.get(INTERVAL_KEY).unwrap() {
+                    BencodeType::Integer(int) => *int as usize,
                     _ => todo!(),
                 };
-                let peer_data = match map.remove(PEERS_KEY).unwrap() {
+                let peer_data = match map.get(PEERS_KEY).unwrap() {
                     BencodeType::ByteString(string) => string,
                     _ => todo!(),
                 };
-                let peers = Self::parse_peers(&peer_data);
-                Tracker { interval, peers }
+                let peers = Self::parse_peers(&peer_data[..]);
+                Response::Success { interval, peers }
             }
             _ => todo!(),
         }
     }
 
+    /// Parse peers encoded in "compact" form
     fn parse_peers(data: &str) -> Vec<Peer> {
         let mut peers = Vec::new();
         let mut idx = 0;
@@ -147,8 +136,6 @@ impl Peer {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
     use mockito::Matcher::UrlEncoded;
 
     use super::*;
@@ -170,8 +157,8 @@ mod tests {
     }
 
     #[test]
-    fn parse_tracker_from_bencoded_data() {
-        let interval = 900;
+    fn create_success_variant_from_successful_response() {
+        let interval_value = 900;
         let peer_one_ip = [0xC0, 0x00, 0x02, 0x7B]; // 192.0.2.123
         let peer_two_ip = [0xC0, 0x00, 0x02, 0x7C]; // 192.0.2.124
         let port_bytes_network_order = [0x1A, 0xE1]; // 6881
@@ -188,16 +175,24 @@ mod tests {
             ));
         }
         let peers_data = peers_data.join("");
-        let mut map = HashMap::new();
-        map.insert("interval".to_string(), BencodeType::Integer(interval));
-        map.insert("peers".to_string(), BencodeType::ByteString(peers_data));
-        let response_dict = BencodeType::Dict(map);
-        let tracker = Tracker::new(response_dict);
-        assert_eq!(
-            interval,
-            TryInto::<i64>::try_into(tracker.interval).unwrap()
+        let bencoded_data = format!(
+            "d{}:{}i{}e{}:{}{}:{}e",
+            INTERVAL_KEY.len(),
+            INTERVAL_KEY,
+            interval_value,
+            PEERS_KEY.len(),
+            PEERS_KEY,
+            peers_data.len(),
+            peers_data
         );
-        assert_eq!(2, tracker.peers.len());
+        let response = Response::deserialise(&bencoded_data);
+        match response {
+            Response::Success { interval, peers } => {
+                assert_eq!(interval_value, TryInto::<i64>::try_into(interval).unwrap());
+                assert_eq!(2, peers.len());
+            }
+            _ => panic!("Expected successful response"),
+        }
     }
 
     #[test]
@@ -278,6 +273,7 @@ mod tests {
         let response = Response::deserialise(&bencoded_data);
         match response {
             Response::Failure(msg) => assert_eq!(msg, value),
+            _ => panic!("Expected failure response"),
         }
     }
 }
