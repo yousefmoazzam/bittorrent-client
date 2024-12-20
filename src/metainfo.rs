@@ -5,7 +5,7 @@ use crate::BencodeType;
 /// Metainfo (`.torrent`) file
 pub struct Metainfo {
     announce: String,
-    info: Info,
+    pub info: Info,
 }
 
 const ANNOUNCE_KEY: &str = "announce";
@@ -69,7 +69,7 @@ const PIECES_KEY: &str = "pieces";
 const SHA1_HASH_HEX_OUTPUT_SIZE: usize = 40;
 
 /// Info dict within metainfo file
-struct Info {
+pub struct Info {
     /// Name of the file
     name: String,
     /// Length of the file in bytes
