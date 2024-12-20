@@ -5,6 +5,10 @@ pub fn encode(data: BencodeType) -> String {
     match data {
         BencodeType::Integer(int) => format!("i{}e", int),
         BencodeType::ByteString(string) => format!("{}:{}", string.len(), string),
+        BencodeType::List(items) => {
+            let inner = items.into_iter().map(encode).collect::<Vec<_>>().join("");
+            format!("l{}e", inner)
+        }
         _ => todo!(),
     }
 }
@@ -27,6 +31,19 @@ mod tests {
         let string = "hello";
         let data = BencodeType::ByteString(string.to_string());
         let expected_output = format!("{}:{}", string.len(), string);
+        let output = encode(data);
+        assert_eq!(output, expected_output);
+    }
+
+    #[test]
+    fn encode_list() {
+        let integer = 42;
+        let string = "hello";
+        let data = BencodeType::List(vec![
+            BencodeType::Integer(integer),
+            BencodeType::ByteString(string.to_string()),
+        ]);
+        let expected_output = format!("li{}e{}:{}e", integer, string.len(), string);
         let output = encode(data);
         assert_eq!(output, expected_output);
     }
