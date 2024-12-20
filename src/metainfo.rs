@@ -146,6 +146,28 @@ impl Info {
         let stop = start + SHA1_HASH_HEX_OUTPUT_SIZE;
         &self.pieces[start..stop]
     }
+
+    /// Serialise to [`BencodeType`]
+    pub fn serialise(&self) -> BencodeType {
+        let mut map = HashMap::new();
+        map.insert(
+            "name".to_string(),
+            BencodeType::ByteString(self.name.clone()),
+        );
+        map.insert(
+            "length".to_string(),
+            BencodeType::Integer(i64::try_from(self.length).unwrap()),
+        );
+        map.insert(
+            "piece length".to_string(),
+            BencodeType::Integer(i64::try_from(self.piece_length).unwrap()),
+        );
+        map.insert(
+            "pieces".to_string(),
+            BencodeType::ByteString(self.pieces.clone()),
+        );
+        BencodeType::Dict(map)
+    }
 }
 
 #[cfg(test)]
@@ -314,6 +336,49 @@ mod tests {
         let info = Info::new(data).unwrap();
         assert_eq!(info.piece(0), hello_sha1);
         assert_eq!(info.piece(1), goodbye_sha1);
+    }
+
+    #[test]
+    fn info_serialisation_produces_correct_bencode_type_dict_variant() {
+        let name = "hello";
+        let length = 128;
+        let piece_length = 64;
+        let hello_sha1 = "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d";
+        let goodbye_sha1 = "3c8ec4874488f6090a157b014ce3397ca8e06d4f";
+        let pieces = format!("{}{}", hello_sha1, goodbye_sha1);
+        let info = Info {
+            name: name.to_string(),
+            length,
+            piece_length,
+            pieces,
+        };
+        let expected_pairs = vec![
+            (
+                "length".to_string(),
+                BencodeType::Integer(i64::try_from(length).unwrap()),
+            ),
+            (
+                "name".to_string(),
+                BencodeType::ByteString(name.to_string()),
+            ),
+            (
+                "piece length".to_string(),
+                BencodeType::Integer(i64::try_from(piece_length).unwrap()),
+            ),
+            (
+                "pieces".to_string(),
+                BencodeType::ByteString(format!("{}{}", hello_sha1, goodbye_sha1)),
+            ),
+        ];
+        let sorted_pairs = match info.serialise() {
+            BencodeType::Dict(map) => {
+                let mut pairs = map.into_iter().collect::<Vec<_>>();
+                pairs.sort_by_key(|pair| pair.0.clone());
+                pairs
+            }
+            _ => panic!("Expected `Dict` variant"),
+        };
+        assert_eq!(expected_pairs, sorted_pairs);
     }
 
     #[test]
