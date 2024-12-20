@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 pub mod client;
 pub mod decode;
+pub mod encode;
 pub mod handshake;
 pub mod message;
 pub mod metainfo;
