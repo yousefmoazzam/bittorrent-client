@@ -90,6 +90,10 @@ where
                 self.choked = false;
                 Ok(message)
             }
+            Message::Choke => {
+                self.choked = true;
+                Ok(message)
+            }
             _ => Ok(message),
         }
     }
@@ -255,5 +259,26 @@ mod tests {
         };
         client.receive().await.unwrap();
         assert!(!client.choked);
+    }
+
+    #[tokio::test]
+    async fn client_sets_choked_true_if_peer_sends_choke_message() {
+        let info_hash = (0x00..0x14).collect::<Vec<_>>();
+        let their_peer_id = "-DEF123-efgh12345678";
+
+        let mock_socket = tokio_test::io::Builder::new()
+            .read(&Message::Unchoke.serialise())
+            .read(&Message::Choke.serialise())
+            .build();
+        let mut client = Client {
+            socket: mock_socket,
+            peer_id: their_peer_id.to_string(),
+            choked: true,
+            bitfield: Bitfield::new(vec![0x05]),
+            info_hash,
+        };
+        client.receive().await.unwrap();
+        client.receive().await.unwrap();
+        assert!(client.choked);
     }
 }
