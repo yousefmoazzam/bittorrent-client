@@ -84,7 +84,14 @@ where
 
     /// Receive message from peer
     pub async fn receive(&mut self) -> std::io::Result<Message> {
-        Message::deserialise(&mut self.socket).await
+        let message = Message::deserialise(&mut self.socket).await?;
+        match message {
+            Message::Unchoke => {
+                self.choked = false;
+                Ok(message)
+            }
+            _ => Ok(message),
+        }
     }
 
     /// Send message to peer
@@ -229,5 +236,24 @@ mod tests {
             info_hash,
         };
         assert!(client.send(message).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn client_sets_choked_false_if_peer_sends_unchoke_message() {
+        let info_hash = (0x00..0x14).collect::<Vec<_>>();
+        let their_peer_id = "-DEF123-efgh12345678";
+
+        let mock_socket = tokio_test::io::Builder::new()
+            .read(&Message::Unchoke.serialise())
+            .build();
+        let mut client = Client {
+            socket: mock_socket,
+            peer_id: their_peer_id.to_string(),
+            choked: true,
+            bitfield: Bitfield::new(vec![0x05]),
+            info_hash,
+        };
+        client.receive().await.unwrap();
+        assert!(!client.choked);
     }
 }
