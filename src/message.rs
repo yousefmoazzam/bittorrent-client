@@ -3,7 +3,7 @@ use tokio::io::{AsyncRead, AsyncReadExt, BufReader};
 const BITS_IN_BYTE: usize = 8;
 
 /// Wrapper type for bitfield message payload
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Bitfield {
     data: Vec<u8>,
 }
@@ -32,7 +32,7 @@ impl Bitfield {
 }
 
 /// Peer message types
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Message {
     KeepAlive,
     Choke,
