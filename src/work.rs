@@ -6,11 +6,11 @@ use std::{
 /// Piece-download work
 pub struct Work {
     /// Index of piece
-    index: u64,
+    pub index: u64,
     /// Length of piece
-    length: u64,
+    pub length: u64,
     /// SHA1 hash of piece
-    hash: Vec<u8>,
+    pub hash: Vec<u8>,
 }
 
 struct SharedQueueInner(VecDeque<Work>);
