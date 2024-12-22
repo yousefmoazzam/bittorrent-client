@@ -4,9 +4,9 @@ use tokio::sync::mpsc::Receiver;
 #[derive(Debug)]
 pub struct Piece {
     /// Index of piece within file
-    index: u64,
+    pub index: u64,
     /// Piece data
-    buf: Vec<u8>,
+    pub buf: Vec<u8>,
 }
 
 /// Receive completed pieces and store them in an in-memory buffer
