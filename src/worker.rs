@@ -49,6 +49,8 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Worker<T> {
                 while block_index < work.length {
                     let block_size = if DEFAULT_BLOCK_SIZE >= work.length {
                         work.length / 2
+                    } else if block_index + DEFAULT_BLOCK_SIZE >= work.length {
+                        work.length - block_index
                     } else {
                         DEFAULT_BLOCK_SIZE
                     };
@@ -214,6 +216,153 @@ mod tests {
                 begin: PIECE_LEN as u64 / 2,
                 block: original_data
                     [PIECE_LEN as usize + PIECE_LEN as usize / 2..PIECE_LEN as usize * 2]
+                    .to_vec(),
+            },
+        ];
+        let mut builder = tokio_test::io::Builder::new();
+        let mut builder = builder
+            .write(&initial_handshake.serialise())
+            .read(&response_handshake.serialise())
+            .read(&bitfield_message)
+            .write(&Message::Unchoke.serialise())
+            .write(&Message::Interested.serialise())
+            .read(&Message::Unchoke.serialise());
+        for request in piece_zero_requests {
+            builder = builder.write(&request.serialise());
+        }
+        for response in piece_zero_responses {
+            builder = builder.read(&response.serialise());
+        }
+        for request in piece_one_requests {
+            builder = builder.write(&request.serialise());
+        }
+        for response in piece_one_responses {
+            builder = builder.read(&response.serialise());
+        }
+        let socket = builder.build();
+        let client = Client::new(socket, info_hash, their_peer_id).await.unwrap();
+
+        // Setup channel that downloaded pieces get sent through
+        let mut receiver_buf = [0; NO_OF_PIECES as usize * PIECE_LEN as usize];
+        let (tx, rx) = tokio::sync::mpsc::channel(NO_OF_PIECES as usize);
+
+        // Spawn tokio task to run worker
+        let mut worker = Worker::new(client, tx, queue);
+        tokio::spawn(async move {
+            worker.download().await.unwrap();
+        });
+
+        // Run piece-receiver
+        crate::piece::receiver(&mut receiver_buf, PIECE_LEN as usize, rx).await;
+
+        assert_eq!(receiver_buf, original_data);
+    }
+
+    #[tokio::test]
+    async fn single_worker_downloads_pieces_larger_than_default_block_size_but_not_divisible_by_it()
+    {
+        // Setup file data
+        const NO_OF_PIECES: u8 = 2;
+        const PIECE_LEN: u64 = 18_000;
+        let piece_template = [5; PIECE_LEN as usize];
+        let mut original_data = [0; NO_OF_PIECES as usize * PIECE_LEN as usize];
+        let mut count = 0;
+        let mut idx = 0;
+        while idx < original_data.len() {
+            let piece = piece_template[..]
+                .iter()
+                .map(|val| val + count * 10)
+                .collect::<Vec<u8>>();
+            original_data[idx..idx + PIECE_LEN as usize].copy_from_slice(&piece);
+            count += 1;
+            idx += PIECE_LEN as usize;
+        }
+
+        // Calculate SHA1 hashes of the pieces
+        let mut piece_hashes = Vec::new();
+        for idx in 0..NO_OF_PIECES {
+            let piece = &original_data
+                [idx as usize * PIECE_LEN as usize..(idx as usize + 1) * PIECE_LEN as usize];
+            let hash = sha1_smol::Sha1::from(piece).digest().bytes();
+            piece_hashes.push(hash);
+        }
+
+        // Setup work queue
+        let work = (0..NO_OF_PIECES as u64)
+            .map(|index| Work {
+                index,
+                length: PIECE_LEN,
+                hash: piece_hashes[index as usize].to_vec(),
+            })
+            .collect::<Vec<_>>();
+        let queue = SharedQueue::new(work);
+
+        // Setup info for preliminary client interactions with peer
+        let info_hash = (0x00..0x14).collect::<Vec<_>>();
+        let their_peer_id = "-DEF123-efgh12345678";
+        let initial_handshake = Handshake::new(PSTR.to_string(), info_hash.clone(), PEER_ID.into());
+        let response_handshake =
+            Handshake::new(PSTR.to_string(), info_hash.clone(), their_peer_id.into());
+        let len: u32 = 2;
+        let id = 0x05;
+        let payload = vec![0b00000011];
+        let mut bitfield_message = u32::to_be_bytes(len).to_vec();
+        bitfield_message.push(id);
+        bitfield_message.append(&mut payload.clone());
+
+        // Setup mock socket with expected block requests/responses (along with all other
+        // preliminary interactions, such as a sucessful handshake)
+        const SECOND_BLOCK_LEN: u64 = PIECE_LEN - DEFAULT_BLOCK_SIZE;
+        let piece_zero_requests = [
+            Message::Request {
+                index: 0,
+                begin: 0,
+                length: DEFAULT_BLOCK_SIZE,
+            },
+            Message::Request {
+                index: 0,
+                begin: DEFAULT_BLOCK_SIZE,
+                length: SECOND_BLOCK_LEN,
+            },
+        ];
+        let piece_zero_responses = [
+            Message::Piece {
+                index: 0,
+                begin: 0,
+                block: original_data[..DEFAULT_BLOCK_SIZE as usize].to_vec(),
+            },
+            Message::Piece {
+                index: 0,
+                begin: DEFAULT_BLOCK_SIZE,
+                block: original_data
+                    [DEFAULT_BLOCK_SIZE as usize..(DEFAULT_BLOCK_SIZE + SECOND_BLOCK_LEN) as usize]
+                    .to_vec(),
+            },
+        ];
+        let piece_one_requests = [
+            Message::Request {
+                index: 1,
+                begin: 0,
+                length: DEFAULT_BLOCK_SIZE,
+            },
+            Message::Request {
+                index: 1,
+                begin: DEFAULT_BLOCK_SIZE,
+                length: SECOND_BLOCK_LEN,
+            },
+        ];
+        let piece_one_responses = [
+            Message::Piece {
+                index: 1,
+                begin: 0,
+                block: original_data[(DEFAULT_BLOCK_SIZE + SECOND_BLOCK_LEN) as usize
+                    ..(2 * DEFAULT_BLOCK_SIZE + SECOND_BLOCK_LEN) as usize]
+                    .to_vec(),
+            },
+            Message::Piece {
+                index: 1,
+                begin: DEFAULT_BLOCK_SIZE,
+                block: original_data[(2 * DEFAULT_BLOCK_SIZE + SECOND_BLOCK_LEN) as usize..]
                     .to_vec(),
             },
         ];
