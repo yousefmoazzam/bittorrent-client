@@ -2,9 +2,7 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 
 use crate::handshake::Handshake;
 use crate::message::{Bitfield, Message};
-use crate::{PEER_ID, PSTR};
-
-const HANDSHAKE_BYTES_LEN: usize = 68;
+use crate::{HANDSHAKE_BYTES_LEN, PEER_ID, PSTR};
 
 /// Connected peer
 pub struct Client<T: AsyncRead + AsyncWrite + Unpin> {

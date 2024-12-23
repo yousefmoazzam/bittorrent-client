@@ -12,6 +12,7 @@ pub mod tracker;
 pub mod work;
 pub mod worker;
 
+pub const HANDSHAKE_BYTES_LEN: usize = 68;
 pub const PEER_ID: &str = "-ABC123-abcd12345678";
 pub const PSTR: &str = "BitTorrent protocol";
 
