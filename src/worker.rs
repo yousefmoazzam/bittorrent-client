@@ -170,7 +170,7 @@ mod tests {
             Handshake::new(PSTR.to_string(), info_hash.clone(), their_peer_id.into());
         let len: u32 = 2;
         let id = 0x05;
-        let payload = vec![0b00000011];
+        let payload = vec![0b11000000];
         let mut bitfield_message = u32::to_be_bytes(len).to_vec();
         bitfield_message.push(id);
         bitfield_message.append(&mut payload.clone());
@@ -315,7 +315,7 @@ mod tests {
             Handshake::new(PSTR.to_string(), info_hash.clone(), their_peer_id.into());
         let len: u32 = 2;
         let id = 0x05;
-        let payload = vec![0b00000011];
+        let payload = vec![0b11000000];
         let mut bitfield_message = u32::to_be_bytes(len).to_vec();
         bitfield_message.push(id);
         bitfield_message.append(&mut payload.clone());
@@ -461,7 +461,7 @@ mod tests {
             Handshake::new(PSTR.to_string(), info_hash.clone(), their_peer_id.into());
         let len: u32 = 2;
         let id = 0x05;
-        let payload = vec![0b00000011];
+        let payload = vec![0b11000000];
         let mut bitfield_message = u32::to_be_bytes(len).to_vec();
         bitfield_message.push(id);
         bitfield_message.append(&mut payload.clone());
