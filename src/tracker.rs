@@ -106,9 +106,9 @@ impl Response {
 #[derive(Debug, PartialEq)]
 pub struct Peer {
     /// IP address of peer
-    ip: Ipv4Addr,
+    pub ip: Ipv4Addr,
     /// Port of peer
-    port: u16,
+    pub port: u16,
 }
 
 impl Peer {
