@@ -2,13 +2,13 @@ use crate::metainfo::Metainfo;
 use crate::tracker::Peer;
 
 /// Wrapper around [`Metainfo`]
-struct Torrent {
+pub struct Torrent {
     /// Metainfo file info
-    metainfo: Metainfo,
+    pub metainfo: Metainfo,
     // SHA1 hash of `info` dict
-    info_hash: Vec<u8>,
+    pub info_hash: Vec<u8>,
     /// Peers associated with file
-    peers: Vec<Peer>,
+    pub peers: Vec<Peer>,
 }
 
 impl Torrent {
