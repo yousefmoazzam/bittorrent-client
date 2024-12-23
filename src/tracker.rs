@@ -104,7 +104,7 @@ impl Response {
 
 /// Peer of file
 #[derive(Debug, PartialEq)]
-struct Peer {
+pub struct Peer {
     /// IP address of peer
     ip: Ipv4Addr,
     /// Port of peer

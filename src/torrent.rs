@@ -1,4 +1,5 @@
 use crate::metainfo::Metainfo;
+use crate::tracker::Peer;
 
 /// Wrapper around [`Metainfo`]
 struct Torrent {
@@ -6,16 +7,19 @@ struct Torrent {
     metainfo: Metainfo,
     // SHA1 hash of `info` dict
     info_hash: Vec<u8>,
+    /// Peers associated with file
+    peers: Vec<Peer>,
 }
 
 impl Torrent {
     /// Calculate SHA1 hash of `info` dict
-    pub fn new(metainfo: Metainfo) -> Torrent {
+    pub fn new(metainfo: Metainfo, peers: Vec<Peer>) -> Torrent {
         let bencoded_info = crate::encode::encode(metainfo.info.serialise());
         let hash = sha1_smol::Sha1::from(bencoded_info).digest().bytes();
         Torrent {
             metainfo,
             info_hash: hash.to_vec(),
+            peers,
         }
     }
 }
@@ -69,7 +73,7 @@ mod tests {
         let data = BencodeType::Dict(metainfo_map);
         let metainfo = Metainfo::new(data).unwrap();
 
-        let torrent = Torrent::new(metainfo);
+        let torrent = Torrent::new(metainfo, vec![]);
         assert_eq!(torrent.info_hash, expected_info_hash);
     }
 }
