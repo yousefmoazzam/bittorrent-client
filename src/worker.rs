@@ -30,6 +30,11 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Worker<T> {
         self.client.send(Message::Interested).await?;
 
         while let Some(work) = self.work_queue.dequeue() {
+            if !self.client.bitfield.has_piece(work.index as usize) {
+                self.work_queue.enqueue(work);
+                tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+                continue;
+            }
             let index = work.index;
             let buf = self.download_piece(&work).await;
             if self.check_integrity(&work, &buf) {
@@ -547,16 +552,16 @@ mod tests {
         for response in piece_zero_responses_incorrect_block_0 {
             builder = builder.read(&response.serialise());
         }
-        for request in piece_one_requests {
-            builder = builder.write(&request.serialise());
-        }
-        for response in piece_one_responses {
-            builder = builder.read(&response.serialise());
-        }
         for request in piece_zero_requests {
             builder = builder.write(&request.serialise());
         }
         for response in piece_zero_responses_correct_block_0 {
+            builder = builder.read(&response.serialise());
+        }
+        for request in piece_one_requests {
+            builder = builder.write(&request.serialise());
+        }
+        for response in piece_one_responses {
             builder = builder.read(&response.serialise());
         }
         let socket = builder.build();
@@ -576,5 +581,241 @@ mod tests {
         crate::piece::receiver(&mut receiver_buf, PIECE_LEN as usize, rx).await;
 
         assert_eq!(receiver_buf, original_data);
+    }
+
+    #[tokio::test]
+    async fn two_workers_download_the_two_pieces_from_their_respective_peer() {
+        // Setup file data
+        const NO_OF_PIECES: u8 = 4;
+        const PIECE_LEN: u8 = 64;
+        let original_data = (0..=255).collect::<Vec<u8>>();
+
+        // Calculate SHA1 hashes of the pieces
+        let mut piece_hashes = Vec::new();
+        for idx in 0..NO_OF_PIECES {
+            let piece = &original_data
+                [idx as usize * PIECE_LEN as usize..(idx as usize + 1) * PIECE_LEN as usize];
+            let hash = sha1_smol::Sha1::from(piece).digest().bytes();
+            piece_hashes.push(hash);
+        }
+
+        // Setup work queue
+        let work = (0..NO_OF_PIECES as u64)
+            .map(|index| Work {
+                index,
+                length: PIECE_LEN as u64,
+                hash: piece_hashes[index as usize].to_vec(),
+            })
+            .collect::<Vec<_>>();
+        let queue = SharedQueue::new(work);
+        let queue_handle = queue.clone();
+
+        // Setup info for preliminary client interactions with peers
+        let info_hash = (0x00..0x14).collect::<Vec<_>>();
+        let message_len: u32 = 2;
+        let message_id = 0x05;
+
+        let peer_0_id = "-DEF123-efgh12345678";
+        let peer_0_initial_handshake =
+            Handshake::new(PSTR.to_string(), info_hash.clone(), PEER_ID.into());
+        let peer_0_response_handshake =
+            Handshake::new(PSTR.to_string(), info_hash.clone(), peer_0_id.into());
+        let peer_0_bitfield_payload = vec![0b10100000];
+        let mut peer_0_bitfield_message = u32::to_be_bytes(message_len).to_vec();
+        peer_0_bitfield_message.push(message_id);
+        peer_0_bitfield_message.append(&mut peer_0_bitfield_payload.clone());
+
+        let peer_1_id = "-HIJ123-ijkl12345678";
+        let peer_1_initial_handshake =
+            Handshake::new(PSTR.to_string(), info_hash.clone(), PEER_ID.into());
+        let peer_1_response_handshake =
+            Handshake::new(PSTR.to_string(), info_hash.clone(), peer_1_id.into());
+        let peer_1_bitfield_payload = vec![0b01010000];
+        let mut peer_1_bitfield_message = u32::to_be_bytes(message_len).to_vec();
+        peer_1_bitfield_message.push(message_id);
+        peer_1_bitfield_message.append(&mut peer_1_bitfield_payload.clone());
+
+        // Setup mock socket with expected block requests/responses (along with all other
+        // preliminary interactions, such as a sucessful handshake)
+        let piece_zero_requests = [
+            Message::Request {
+                index: 0,
+                begin: 0,
+                length: PIECE_LEN as u64 / 2,
+            },
+            Message::Request {
+                index: 0,
+                begin: PIECE_LEN as u64 / 2,
+                length: PIECE_LEN as u64 / 2,
+            },
+        ];
+        let piece_zero_responses = [
+            Message::Piece {
+                index: 0,
+                begin: 0,
+                block: original_data[..PIECE_LEN as usize / 2].to_vec(),
+            },
+            Message::Piece {
+                index: 0,
+                begin: PIECE_LEN as u64 / 2,
+                block: original_data[PIECE_LEN as usize / 2..PIECE_LEN as usize].to_vec(),
+            },
+        ];
+        let piece_one_requests = [
+            Message::Request {
+                index: 1,
+                begin: 0,
+                length: PIECE_LEN as u64 / 2,
+            },
+            Message::Request {
+                index: 1,
+                begin: PIECE_LEN as u64 / 2,
+                length: PIECE_LEN as u64 / 2,
+            },
+        ];
+        let piece_one_responses = [
+            Message::Piece {
+                index: 1,
+                begin: 0,
+                block: original_data
+                    [PIECE_LEN as usize..PIECE_LEN as usize + PIECE_LEN as usize / 2]
+                    .to_vec(),
+            },
+            Message::Piece {
+                index: 1,
+                begin: PIECE_LEN as u64 / 2,
+                block: original_data
+                    [PIECE_LEN as usize + PIECE_LEN as usize / 2..PIECE_LEN as usize * 2]
+                    .to_vec(),
+            },
+        ];
+        let piece_two_requests = [
+            Message::Request {
+                index: 2,
+                begin: 0,
+                length: PIECE_LEN as u64 / 2,
+            },
+            Message::Request {
+                index: 2,
+                begin: PIECE_LEN as u64 / 2,
+                length: PIECE_LEN as u64 / 2,
+            },
+        ];
+        let piece_two_responses = [
+            Message::Piece {
+                index: 2,
+                begin: 0,
+                block: original_data
+                    [2 * PIECE_LEN as usize..(2 * PIECE_LEN + PIECE_LEN / 2) as usize]
+                    .to_vec(),
+            },
+            Message::Piece {
+                index: 2,
+                begin: PIECE_LEN as u64 / 2,
+                block: original_data
+                    [(2 * PIECE_LEN + PIECE_LEN / 2) as usize..3 * PIECE_LEN as usize]
+                    .to_vec(),
+            },
+        ];
+        let piece_three_requests = [
+            Message::Request {
+                index: 3,
+                begin: 0,
+                length: PIECE_LEN as u64 / 2,
+            },
+            Message::Request {
+                index: 3,
+                begin: PIECE_LEN as u64 / 2,
+                length: PIECE_LEN as u64 / 2,
+            },
+        ];
+        let piece_three_responses = [
+            Message::Piece {
+                index: 3,
+                begin: 0,
+                block: original_data
+                    [3 * PIECE_LEN as usize..(3 * PIECE_LEN + PIECE_LEN / 2) as usize]
+                    .to_vec(),
+            },
+            Message::Piece {
+                index: 3,
+                begin: PIECE_LEN as u64 / 2,
+                block: original_data
+                    [(3 * PIECE_LEN + PIECE_LEN / 2) as usize..4 * PIECE_LEN as usize]
+                    .to_vec(),
+            },
+        ];
+
+        // Define mock socket for peer 0
+        let mut peer_0_builder = tokio_test::io::Builder::new();
+        let mut peer_0_builder = peer_0_builder
+            .write(&peer_0_initial_handshake.serialise())
+            .read(&peer_0_response_handshake.serialise())
+            .read(&peer_0_bitfield_message)
+            .write(&Message::Unchoke.serialise())
+            .write(&Message::Interested.serialise())
+            .read(&Message::Unchoke.serialise());
+        for request in piece_zero_requests {
+            peer_0_builder = peer_0_builder.write(&request.serialise());
+        }
+        for response in piece_zero_responses {
+            peer_0_builder = peer_0_builder.read(&response.serialise());
+        }
+        for request in piece_two_requests {
+            peer_0_builder = peer_0_builder.write(&request.serialise());
+        }
+        for response in piece_two_responses {
+            peer_0_builder = peer_0_builder.read(&response.serialise());
+        }
+        let peer_0_socket = peer_0_builder.build();
+        let peer_0_client = Client::new(peer_0_socket, info_hash.clone(), peer_0_id)
+            .await
+            .unwrap();
+
+        // Define mock socket for peer 1
+        let mut peer_1_builder = tokio_test::io::Builder::new();
+        let mut peer_1_builder = peer_1_builder
+            .write(&peer_1_initial_handshake.serialise())
+            .read(&peer_1_response_handshake.serialise())
+            .read(&peer_1_bitfield_message)
+            .write(&Message::Unchoke.serialise())
+            .write(&Message::Interested.serialise())
+            .read(&Message::Unchoke.serialise());
+        for request in piece_one_requests {
+            peer_1_builder = peer_1_builder.write(&request.serialise());
+        }
+        for response in piece_one_responses {
+            peer_1_builder = peer_1_builder.read(&response.serialise());
+        }
+        for request in piece_three_requests {
+            peer_1_builder = peer_1_builder.write(&request.serialise());
+        }
+        for response in piece_three_responses {
+            peer_1_builder = peer_1_builder.read(&response.serialise());
+        }
+        let peer_1_socket = peer_1_builder.build();
+        let peer_1_client = Client::new(peer_1_socket, info_hash, peer_1_id)
+            .await
+            .unwrap();
+
+        // Setup channel that downloaded pieces get sent through
+        let mut receiver_buf = [0; NO_OF_PIECES as usize * PIECE_LEN as usize];
+        let (tx, rx) = tokio::sync::mpsc::channel(NO_OF_PIECES as usize);
+        let tx1 = tx.clone();
+
+        // Spawn tokio tasks to run workers
+        let mut peer_0_worker = Worker::new(peer_0_client, tx, queue);
+        tokio::spawn(async move {
+            peer_0_worker.download().await.unwrap();
+        });
+        let mut peer_1_worker = Worker::new(peer_1_client, tx1, queue_handle);
+        tokio::spawn(async move {
+            peer_1_worker.download().await.unwrap();
+        });
+
+        // Run piece-receiver
+        crate::piece::receiver(&mut receiver_buf, PIECE_LEN as usize, rx).await;
+
+        assert_eq!(receiver_buf, &original_data[..]);
     }
 }

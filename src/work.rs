@@ -36,10 +36,10 @@ impl SharedQueue {
         lock.0.pop_front()
     }
 
-    /// Put work element onto back of queue
+    /// Put work element onto front of queue
     pub fn enqueue(&self, work: Work) {
         let mut lock = self.inner.lock().unwrap();
-        lock.0.push_back(work);
+        lock.0.push_front(work);
     }
 }
 
