@@ -140,11 +140,12 @@ impl Info {
         }
     }
 
-    /// Get single piece from `pieces`
-    fn piece(&self, number: usize) -> &str {
-        let start = number * SHA1_HASH_HEX_OUTPUT_SIZE;
-        let stop = start + SHA1_HASH_HEX_OUTPUT_SIZE;
-        &self.pieces[start..stop]
+    /// Get iterator over individual pieces in `pieces`
+    fn pieces(&self) -> impl Iterator<Item = &str> {
+        let no_of_pieces = self.pieces.len() / SHA1_HASH_HEX_OUTPUT_SIZE;
+        (0..no_of_pieces).map(|idx| {
+            &self.pieces[idx * SHA1_HASH_HEX_OUTPUT_SIZE..(idx + 1) * SHA1_HASH_HEX_OUTPUT_SIZE]
+        })
     }
 
     /// Serialise to [`BencodeType`]
@@ -312,7 +313,7 @@ mod tests {
     }
 
     #[test]
-    fn get_pieces_from_info_struct() {
+    fn get_pieces_iterator_from_info_struct() {
         let name = "hello";
         let length = 128;
         let piece_length = 64;
@@ -334,8 +335,11 @@ mod tests {
         );
         let data = BencodeType::Dict(map);
         let info = Info::new(data).unwrap();
-        assert_eq!(info.piece(0), hello_sha1);
-        assert_eq!(info.piece(1), goodbye_sha1);
+        let pieces = info.pieces().collect::<Vec<&str>>();
+        assert_eq!(pieces.len(), 2);
+        for (piece, expected_piece) in std::iter::zip([hello_sha1, goodbye_sha1], pieces) {
+            assert_eq!(piece, expected_piece);
+        }
     }
 
     #[test]
