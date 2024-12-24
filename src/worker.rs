@@ -122,9 +122,7 @@ mod tests {
             .write(&Message::Unchoke.serialise())
             .write(&Message::Interested.serialise())
             .build();
-        let client = Client::new(mock_socket, info_hash, their_peer_id.to_string())
-            .await
-            .unwrap();
+        let client = Client::new(mock_socket, info_hash).await.unwrap();
         let (tx, _) = tokio::sync::mpsc::channel(1);
         let mut worker = Worker::new(client, tx, SharedQueue::new(vec![]));
         let _ = worker.download().await;
@@ -258,9 +256,7 @@ mod tests {
         }
         builder.write(&Message::Have(1).serialise());
         let socket = builder.build();
-        let client = Client::new(socket, info_hash, their_peer_id.to_string())
-            .await
-            .unwrap();
+        let client = Client::new(socket, info_hash).await.unwrap();
 
         // Setup channel that downloaded pieces get sent through
         let mut receiver_buf = [0; NO_OF_PIECES as usize * PIECE_LEN as usize];
@@ -409,9 +405,7 @@ mod tests {
         }
         builder.write(&Message::Have(1).serialise());
         let socket = builder.build();
-        let client = Client::new(socket, info_hash, their_peer_id.to_string())
-            .await
-            .unwrap();
+        let client = Client::new(socket, info_hash).await.unwrap();
 
         // Setup channel that downloaded pieces get sent through
         let mut receiver_buf = [0; NO_OF_PIECES as usize * PIECE_LEN as usize];
@@ -576,9 +570,7 @@ mod tests {
         }
         builder.write(&Message::Have(1).serialise());
         let socket = builder.build();
-        let client = Client::new(socket, info_hash, their_peer_id.to_string())
-            .await
-            .unwrap();
+        let client = Client::new(socket, info_hash).await.unwrap();
 
         // Setup channel that downloaded pieces get sent through
         let mut receiver_buf = [0; NO_OF_PIECES as usize * PIECE_LEN as usize];
@@ -783,9 +775,7 @@ mod tests {
         }
         peer_0_builder.write(&Message::Have(2).serialise());
         let peer_0_socket = peer_0_builder.build();
-        let peer_0_client = Client::new(peer_0_socket, info_hash.clone(), peer_0_id.to_string())
-            .await
-            .unwrap();
+        let peer_0_client = Client::new(peer_0_socket, info_hash.clone()).await.unwrap();
 
         // Define mock socket for peer 1
         let mut peer_1_builder = tokio_test::io::Builder::new();
@@ -811,9 +801,7 @@ mod tests {
         }
         peer_1_builder.write(&Message::Have(3).serialise());
         let peer_1_socket = peer_1_builder.build();
-        let peer_1_client = Client::new(peer_1_socket, info_hash, peer_1_id.to_string())
-            .await
-            .unwrap();
+        let peer_1_client = Client::new(peer_1_socket, info_hash).await.unwrap();
 
         // Setup channel that downloaded pieces get sent through
         let mut receiver_buf = [0; NO_OF_PIECES as usize * PIECE_LEN as usize];
@@ -964,9 +952,7 @@ mod tests {
         }
         builder.write(&Message::Have(1).serialise());
         let socket = builder.build();
-        let client = Client::new(socket, info_hash, their_peer_id.to_string())
-            .await
-            .unwrap();
+        let client = Client::new(socket, info_hash).await.unwrap();
 
         // Setup channel that downloaded pieces get sent through
         let mut receiver_buf = [0; NO_OF_PIECES as usize * PIECE_LEN as usize];

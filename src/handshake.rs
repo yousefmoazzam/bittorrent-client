@@ -10,7 +10,7 @@ pub struct Handshake {
     /// SHA1 hash of bencoded `info` dict of file
     pub info_hash: Vec<u8>,
     /// Identifier of peer
-    peer_id: Vec<u8>,
+    pub peer_id: Vec<u8>,
 }
 
 impl Handshake {

@@ -23,12 +23,8 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
 {
     /// Send handshake and receive bitfield message from peer
-    pub async fn new(
-        mut socket: T,
-        info_hash: Vec<u8>,
-        peer_id: String,
-    ) -> std::io::Result<Client<T>> {
-        Client::handshake(&mut socket, info_hash.clone()).await?;
+    pub async fn new(mut socket: T, info_hash: Vec<u8>) -> std::io::Result<Client<T>> {
+        let peer_id = Client::handshake(&mut socket, info_hash.clone()).await?;
         let bitfield = Client::receive_bitfield(&mut socket).await?;
         Ok(Client {
             socket,
@@ -40,7 +36,7 @@ where
     }
 
     /// Send initial handshake to peer
-    async fn handshake(mut socket: T, info_hash: Vec<u8>) -> std::io::Result<()> {
+    async fn handshake(mut socket: T, info_hash: Vec<u8>) -> std::io::Result<String> {
         let initial_handshake = Handshake::new(PSTR.to_string(), info_hash, PEER_ID.into());
         socket.write_all(&initial_handshake.serialise()[..]).await?;
 
@@ -50,7 +46,9 @@ where
 
         let deserialised_response = Handshake::deserialise(&response_handshake[..]);
         match deserialised_response.info_hash == initial_handshake.info_hash {
-            true => Ok(()),
+            true => Ok(std::str::from_utf8(&deserialised_response.peer_id)
+                .unwrap()
+                .to_string()),
             false => {
                 let msg = format!(
                     "Info hash mismatch: us={}, peer={}",
@@ -124,7 +122,7 @@ mod tests {
             .write(&expected_initial_handshake.serialise())
             .read(&bad_response_handshake.serialise())
             .build();
-        let res = Client::new(mock_socket, info_hash.clone(), their_peer_id.to_string()).await;
+        let res = Client::new(mock_socket, info_hash.clone()).await;
 
         let expected_err_msg = format!(
             "Info hash mismatch: us={}, peer={}",
@@ -160,7 +158,7 @@ mod tests {
             .read(&response_handshake.serialise())
             .read(&incorrect_first_message_data[..])
             .build();
-        let res = Client::new(mock_socket, info_hash.clone(), their_peer_id.to_string()).await;
+        let res = Client::new(mock_socket, info_hash.clone()).await;
 
         let expected_err_msg = "First message not bitfield";
         assert!(res.is_err_and(|val| val.to_string() == expected_err_msg));
@@ -185,9 +183,7 @@ mod tests {
             .read(&response_handshake.serialise())
             .read(&bitfield_message)
             .build();
-        let client = Client::new(mock_socket, info_hash.clone(), their_peer_id.to_string())
-            .await
-            .unwrap();
+        let client = Client::new(mock_socket, info_hash.clone()).await.unwrap();
 
         let expected_bitfield = Bitfield::new(payload);
         assert!(client.choked);
