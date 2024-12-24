@@ -141,7 +141,7 @@ impl Info {
     }
 
     /// Get iterator over individual pieces in `pieces`
-    fn pieces(&self) -> impl Iterator<Item = &str> {
+    pub fn pieces(&self) -> impl Iterator<Item = &str> {
         let no_of_pieces = self.pieces.len() / SHA1_HASH_HEX_OUTPUT_SIZE;
         (0..no_of_pieces).map(|idx| {
             &self.pieces[idx * SHA1_HASH_HEX_OUTPUT_SIZE..(idx + 1) * SHA1_HASH_HEX_OUTPUT_SIZE]
