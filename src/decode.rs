@@ -23,7 +23,7 @@ fn decode_recurse(data: &str, idx: &mut usize) -> BencodeType {
         return value;
     }
 
-    let type_char = (&data[*idx..]).chars().next().unwrap();
+    let type_char = data[*idx..].chars().next().unwrap();
     match type_char {
         'i' => {
             let (value, offset) = decode_integer(&data[*idx..]);
@@ -56,7 +56,7 @@ fn decode_dict(data: &str, idx: &mut usize) -> BencodeType {
             todo!()
         }
 
-        if (&data[*idx..]).chars().next().unwrap() == 'e' {
+        if data[*idx..].chars().next().unwrap() == 'e' {
             break;
         }
     }
@@ -67,7 +67,7 @@ fn decode_dict(data: &str, idx: &mut usize) -> BencodeType {
 /// Decode a bencoded list
 fn decode_list(data: &str, idx: &mut usize) -> BencodeType {
     let mut elements = Vec::new();
-    let mut next_char = (&data[*idx..]).chars().next().unwrap();
+    let mut next_char = data[*idx..].chars().next().unwrap();
 
     loop {
         match next_char {
@@ -75,7 +75,7 @@ fn decode_list(data: &str, idx: &mut usize) -> BencodeType {
             _ => {
                 let element = decode_recurse(data, idx);
                 elements.push(element);
-                next_char = (&data[*idx..]).chars().next().unwrap();
+                next_char = data[*idx..].chars().next().unwrap();
             }
         }
     }
