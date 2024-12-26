@@ -5,7 +5,7 @@ use crate::tracker::Peer;
 pub struct Torrent {
     /// Metainfo file info
     pub metainfo: Metainfo,
-    // SHA1 hash of `info` dict
+    /// SHA1 hash of `info` dict
     pub info_hash: Vec<u8>,
     /// Peers associated with file
     pub peers: Vec<Peer>,
