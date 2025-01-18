@@ -103,6 +103,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::{Read, Write};
 
     #[tokio::test]
     async fn return_error_if_incorrect_info_hash_in_handshake_response() {
@@ -190,6 +191,62 @@ mod tests {
         assert_eq!(client.peer_id, their_peer_id);
         assert_eq!(client.info_hash, info_hash);
         assert_eq!(client.bitfield, expected_bitfield);
+    }
+
+    #[test]
+    fn return_client_if_successful_handshake_and_receive_bitifield_message_real_socket() {
+        let info_hash = (0x00..0x14).collect::<Vec<_>>();
+        let their_peer_id = "-DEF123-efgh12345678";
+
+        let response_handshake =
+            Handshake::new(PSTR.to_string(), info_hash.clone(), their_peer_id.into());
+        let len: u32 = 2;
+        let id = 0x05;
+        let payload = vec![0x10];
+        let mut bitfield_message = u32::to_be_bytes(len).to_vec();
+        bitfield_message.push(id);
+        bitfield_message.append(&mut payload.clone());
+
+        let addr = "127.0.0.1:13245";
+        let listener = std::net::TcpListener::bind(addr).unwrap();
+
+        let handle = std::thread::spawn(move || {
+            let mut throwaway_buf = [0; HANDSHAKE_BYTES_LEN];
+            let (mut socket, _) = listener.accept().unwrap();
+            // Peer reads initial handshake from client
+            socket.read_exact(&mut throwaway_buf).unwrap();
+
+            // Peer writes response handshake to client
+            socket.write_all(&response_handshake.serialise()).unwrap();
+
+            // Peer writes bitfield message to client
+            //
+            // NOTE: Without the sleep, there appears to be some sort of race condition where:
+            // - sometimes the client is able to receive the bitfield message and the test passes
+            // - other times, the client receives an unexpected EOF error when attempting to read
+            // the length of the bitfield message sent
+            //
+            // See issue #3 on github for more info:
+            // https://github.com/yousefmoazzam/bittorrent-client/issues/3
+            std::thread::sleep(std::time::Duration::from_millis(5));
+            socket.write_all(&bitfield_message).unwrap();
+        });
+
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(async {
+                let socket = tokio::net::TcpStream::connect(addr).await.unwrap();
+                let client = Client::new(socket, info_hash.clone()).await.unwrap();
+                handle.join().unwrap();
+
+                let expected_bitfield = Bitfield::new(payload);
+                assert!(client.choked);
+                assert_eq!(client.peer_id, their_peer_id);
+                assert_eq!(client.info_hash, info_hash);
+                assert_eq!(client.bitfield, expected_bitfield);
+            });
     }
 
     #[tokio::test]
