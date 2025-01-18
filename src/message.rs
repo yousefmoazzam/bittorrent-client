@@ -70,11 +70,14 @@ impl Message {
         T: AsyncRead + Unpin,
     {
         let mut reader = BufReader::new(socket);
+        println!("CLIENT: before reading message length");
         let len = reader.read_u32().await?;
+        println!("CLIENT: message length is {}", len);
         if len == 0 {
             return Ok(Message::KeepAlive);
         }
 
+        println!("CLIENT: before reading message ID");
         let id = reader.read_u8().await?;
 
         if len == 1 {
