@@ -73,7 +73,7 @@ pub struct Info {
     /// Name of the file
     name: String,
     /// Length of the file in bytes
-    length: usize,
+    pub length: usize,
     /// Length of a piece of the file in bytes
     piece_length: usize,
     /// String containing full pieces bencoded byte string
