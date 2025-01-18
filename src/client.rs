@@ -24,7 +24,9 @@ where
 {
     /// Send handshake and receive bitfield message from peer
     pub async fn new(mut socket: T, info_hash: Vec<u8>) -> std::io::Result<Client<T>> {
+        println!("CLIENT: gonna try to handshake with peer");
         let peer_id = Client::handshake(&mut socket, info_hash.clone()).await?;
+        println!("CLIENT: conected peer's ID is {}", peer_id);
         let bitfield = Client::receive_bitfield(&mut socket).await?;
         Ok(Client {
             socket,
@@ -38,9 +40,13 @@ where
     /// Send initial handshake to peer
     async fn handshake(mut socket: T, info_hash: Vec<u8>) -> std::io::Result<String> {
         let initial_handshake = Handshake::new(PSTR.to_string(), info_hash, PEER_ID.into());
+        println!("CLIENT: before sending handshake to peer");
         socket.write_all(&initial_handshake.serialise()[..]).await?;
+        println!("CLIENT: before attempting to read handshake repsosne from peer");
+
         let mut response_handshake = [0; HANDSHAKE_BYTES_LEN];
         socket.read_exact(&mut response_handshake[..]).await?;
+        println!("CLIENT: handshake response was: {:?}", response_handshake);
 
         let deserialised_response = Handshake::deserialise(&response_handshake[..]);
         match deserialised_response.info_hash == initial_handshake.info_hash {
@@ -70,6 +76,7 @@ where
 
     /// Receive initial bitfield message from peer
     async fn receive_bitfield(socket: &mut T) -> std::io::Result<Bitfield> {
+        println!("CLIENT: before trying to receive bitfield");
         match Message::deserialise(socket).await? {
             Message::Bitfield(bitfield) => Ok(bitfield),
             _ => Err(std::io::Error::other("First message not bitfield")),

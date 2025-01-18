@@ -1,4 +1,4 @@
-use tokio::io::{AsyncRead, AsyncReadExt, BufReader};
+use tokio::io::{AsyncRead, AsyncReadExt};
 
 const BITS_IN_BYTE: usize = 8;
 
@@ -69,13 +69,17 @@ impl Message {
     where
         T: AsyncRead + Unpin,
     {
-        let mut reader = BufReader::new(socket);
-        let len = reader.read_u32().await?;
+        //let mut reader = BufReader::new(socket);
+        println!("CLIENT: before reading message length");
+        let len = socket.read_u32().await?;
+        println!("CLIENT: message length is {}", len);
         if len == 0 {
             return Ok(Message::KeepAlive);
         }
 
-        let id = reader.read_u8().await?;
+        println!("CLIENT: before reading message ID");
+        let id = socket.read_u8().await?;
+        println!("CLIENT: message ID is {}", id);
 
         if len == 1 {
             return match id {
@@ -91,7 +95,7 @@ impl Message {
         }
 
         let mut bytes = vec![0; len as usize - 1];
-        reader.read_exact(&mut bytes[..]).await?;
+        socket.read_exact(&mut bytes[..]).await?;
         match id {
             0x04 => {
                 let index = u64::from_be_bytes([
