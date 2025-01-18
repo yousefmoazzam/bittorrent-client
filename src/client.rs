@@ -24,7 +24,10 @@ where
 {
     /// Send handshake and receive bitfield message from peer
     pub async fn new(mut socket: T, info_hash: Vec<u8>) -> std::io::Result<Client<T>> {
+        println!("CLIENT: Before trying to send initial_handshake to peer");
         let peer_id = Client::handshake(&mut socket, info_hash.clone()).await?;
+        println!("CLIENT: Peer's ID is {}", peer_id);
+        println!("CLIENT: Before trying to receive bitfield from peer");
         let bitfield = Client::receive_bitfield(&mut socket).await?;
         Ok(Client {
             socket,
@@ -42,7 +45,12 @@ where
 
         let mut reader = BufReader::new(socket);
         let mut response_handshake = [0; HANDSHAKE_BYTES_LEN];
+        println!("CLIENT: before reading handshake response from peer");
         reader.read_exact(&mut response_handshake[..]).await?;
+        println!(
+            "CLIENT: after reading handshake response from peer, it was {:?}",
+            response_handshake
+        );
 
         let deserialised_response = Handshake::deserialise(&response_handshake[..]);
         match deserialised_response.info_hash == initial_handshake.info_hash {
@@ -102,6 +110,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::io::{Read, Write};
+
     use super::*;
 
     #[tokio::test]
@@ -184,6 +194,76 @@ mod tests {
             .read(&bitfield_message)
             .build();
         let client = Client::new(mock_socket, info_hash.clone()).await.unwrap();
+
+        let expected_bitfield = Bitfield::new(payload);
+        assert!(client.choked);
+        assert_eq!(client.peer_id, their_peer_id);
+        assert_eq!(client.info_hash, info_hash);
+        assert_eq!(client.bitfield, expected_bitfield);
+    }
+
+    #[tokio::test]
+    async fn return_client_if_successful_handshake_and_receive_bitifield_message_real_socket() {
+        let info_hash = (0x00..0x14).collect::<Vec<_>>();
+        let their_peer_id = "-DEF123-efgh12345678";
+
+        let initial_handshake = Handshake::new(PSTR.to_string(), info_hash.clone(), PEER_ID.into());
+        let response_handshake =
+            Handshake::new(PSTR.to_string(), info_hash.clone(), their_peer_id.into());
+        let len: u32 = 2;
+        let id = 0x05;
+        let payload = vec![0x10];
+        let mut bitfield_message = u32::to_be_bytes(len).to_vec();
+        bitfield_message.push(id);
+        bitfield_message.append(&mut payload.clone());
+
+        //let mut response_handshake_and_bitfield = Vec::new();
+        //response_handshake_and_bitfield.append(&mut response_handshake.serialise());
+        //response_handshake_and_bitfield.append(&mut bitfield_message);
+        let addr = "127.0.0.1:13245";
+        let listener = std::net::TcpListener::bind(addr).unwrap();
+
+        let handle = std::thread::spawn(move || {
+            let mut throwaway_buf = [0; 1024];
+            let (mut socket, _) = listener.accept().unwrap();
+            // Peer reads initial handshake from client
+            //std::thread::sleep(std::time::Duration::from_millis(100));
+            //println!("PEER: before reading initial handshake");
+            let _ = socket.read(&mut throwaway_buf).unwrap();
+            //println!("PEER: after reading initial handshake");
+
+            // Peer writes both resposne handshake and bitfield message in one go
+            //std::thread::sleep(std::time::Duration::from_millis(100));
+            //socket.write_all(&response_handshake_and_bitfield).unwrap();
+
+            // Peer writes response handshake to peer
+            println!("PEER: before writing response handshake");
+            //std::thread::sleep(std::time::Duration::from_millis(100));
+            socket.write_all(&response_handshake.serialise()).unwrap();
+            socket.flush().unwrap();
+            println!("PEER: after writing response handshake");
+
+            // Peer writes bitfield message to client
+            //socket.write_all(&u32::to_be_bytes(2)).unwrap();
+            println!("PEER: before writing bitfield message");
+            println!("PEER: bitfield message to send is {:?}", bitfield_message);
+            //std::thread::sleep(std::time::Duration::from_millis(100));
+            socket.write_all(&bitfield_message).unwrap();
+            socket.flush().unwrap();
+            println!("PEER: after writing bitfield message");
+
+            // Try to keep thread alive for the client to do what it needs to
+            std::thread::sleep(std::time::Duration::from_millis(3000));
+        });
+
+        //let mock_socket = tokio_test::io::Builder::new()
+        //    .write(&initial_handshake.serialise())
+        //    .read(&response_handshake.serialise())
+        //    .read(&bitfield_message)
+        //    .build();
+        let socket = tokio::net::TcpStream::connect(addr).await.unwrap();
+        let client = Client::new(socket, info_hash.clone()).await.unwrap();
+        handle.join().unwrap();
 
         let expected_bitfield = Bitfield::new(payload);
         assert!(client.choked);

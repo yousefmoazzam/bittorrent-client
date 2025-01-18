@@ -70,7 +70,29 @@ impl Message {
         T: AsyncRead + Unpin,
     {
         let mut reader = BufReader::new(socket);
-        let len = reader.read_u32().await?;
+        println!("CLIENT: Before reading message length");
+        //let mut buf = [0; 1024];
+        //let bytes_read = reader.read(&mut buf).await.unwrap();
+        //println!("CLIENT: bytes_read is {}", bytes_read);
+        //let len = reader.read_u32().await;
+        //println!("CLIENT: len is {:?}", len);
+        //let len = len.unwrap();
+
+        //let mut buf = vec![0; 1024];
+        //let bytes_read = reader.read_to_end(&mut buf).await;
+        //println!("CLIENT: bytes_read is {:?}", bytes_read);
+        //let len = bytes_read.unwrap();
+        //println!("CLIENT: data read was {:?}", &buf[..len]);
+
+        let mut len_buf = [0; 4];
+        let res = reader.read_exact(&mut len_buf).await;
+        println!("CLIENT: len_buf is {:?}", len_buf);
+        println!("CLIENT: res is {:?}", res);
+        let bytes_read = res.unwrap();
+        println!("CLIENT: bytes_read is {}", bytes_read);
+        let len = u32::from_be_bytes(len_buf);
+
+        println!("CLIENT: Mesage length is {}", len);
         if len == 0 {
             return Ok(Message::KeepAlive);
         }
