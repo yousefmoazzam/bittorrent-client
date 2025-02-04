@@ -1,4 +1,4 @@
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use crate::handshake::Handshake;
 use crate::message::{Bitfield, Message};
@@ -39,10 +39,8 @@ where
     async fn handshake(mut socket: T, info_hash: Vec<u8>) -> std::io::Result<String> {
         let initial_handshake = Handshake::new(PSTR.to_string(), info_hash, PEER_ID.into());
         socket.write_all(&initial_handshake.serialise()[..]).await?;
-
-        let mut reader = BufReader::new(socket);
         let mut response_handshake = [0; HANDSHAKE_BYTES_LEN];
-        reader.read_exact(&mut response_handshake[..]).await?;
+        socket.read_exact(&mut response_handshake[..]).await?;
 
         let deserialised_response = Handshake::deserialise(&response_handshake[..]);
         match deserialised_response.info_hash == initial_handshake.info_hash {
@@ -220,15 +218,6 @@ mod tests {
             socket.write_all(&response_handshake.serialise()).unwrap();
 
             // Peer writes bitfield message to client
-            //
-            // NOTE: Without the sleep, there appears to be some sort of race condition where:
-            // - sometimes the client is able to receive the bitfield message and the test passes
-            // - other times, the client receives an unexpected EOF error when attempting to read
-            // the length of the bitfield message sent
-            //
-            // See issue #3 on github for more info:
-            // https://github.com/yousefmoazzam/bittorrent-client/issues/3
-            std::thread::sleep(std::time::Duration::from_millis(5));
             socket.write_all(&bitfield_message).unwrap();
         });
 
