@@ -107,6 +107,7 @@ dependencies = [
  "sha1_smol",
  "tokio",
  "tokio-test",
+ "url",
 ]
 
 [[package]]

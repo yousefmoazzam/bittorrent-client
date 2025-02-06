@@ -22,7 +22,7 @@ impl Request {
         port: u32,
         info_hash: Vec<u8>,
         file_length: usize,
-    ) -> Request {
+    ) -> Result<Request, url::ParseError> {
         let info_hash_str = info_hash
             .iter()
             .map(|byte| format!("%{:02x}", byte))
@@ -31,7 +31,7 @@ impl Request {
         let mut string_url = tracker_url.to_string();
         string_url.push_str("?info_hash=");
         string_url.push_str(&info_hash_str);
-        let mut url = Url::parse(&string_url).unwrap();
+        let mut url = Url::parse(&string_url)?;
         url.query_pairs_mut()
             .append_pair("peer_id", peer_id)
             .append_pair("port", &port.to_string())
@@ -39,7 +39,7 @@ impl Request {
             .append_pair("downloaded", &0.to_string())
             .append_pair("compact", &1.to_string())
             .append_pair("left", &file_length.to_string());
-        Request { url }
+        Ok(Request { url })
     }
 
     /// Send request and return response body
@@ -208,7 +208,8 @@ mod tests {
             port,
             info_hash.clone(),
             file_length,
-        );
+        )
+        .unwrap();
 
         let info_hash_str = info_hash
             .iter()
@@ -261,6 +262,7 @@ mod tests {
             info_hash.clone(),
             file_length,
         )
+        .unwrap()
         .send()
         .await
         .unwrap();
@@ -297,6 +299,7 @@ mod tests {
             .with_body(bencoded_data.clone())
             .create();
         let response = Request::new(&server.url(), crate::PEER_ID, port, info_hash, file_length)
+            .unwrap()
             .send()
             .await
             .unwrap();
