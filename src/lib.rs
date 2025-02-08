@@ -8,6 +8,7 @@ pub mod handshake;
 pub mod init;
 pub mod message;
 pub mod metainfo;
+pub mod parse;
 pub mod piece;
 pub mod torrent;
 pub mod tracker;
