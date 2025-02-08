@@ -1,4 +1,4 @@
-use nom::{bytes::complete::tag, character::complete::i64, IResult, Parser};
+use nom::{bytes::complete::tag, character::complete::i64, sequence::delimited, IResult, Parser};
 
 pub enum BencodeType2 {
     ByteString(Vec<u8>),
@@ -9,7 +9,7 @@ pub fn parse(input: &[u8]) -> BencodeType2 {
     match parse_byte_string(input) {
         Err(_) => match parse_integer(input) {
             Err(_) => todo!(),
-            Ok((_, (_, val, _))) => BencodeType2::Integer(val),
+            Ok((_, val)) => BencodeType2::Integer(val),
         },
         Ok((leftover, (len, _))) => BencodeType2::ByteString(leftover[..len as usize].to_vec()),
     }
@@ -19,8 +19,8 @@ fn parse_byte_string(input: &[u8]) -> IResult<&[u8], (i64, &[u8])> {
     (i64, tag(":")).parse(input)
 }
 
-fn parse_integer(input: &[u8]) -> IResult<&[u8], (&[u8], i64, &[u8])> {
-    (tag("i"), i64, tag("e")).parse(input)
+fn parse_integer(input: &[u8]) -> IResult<&[u8], i64> {
+    delimited(tag("i"), i64, tag("e")).parse(input)
 }
 
 #[cfg(test)]
