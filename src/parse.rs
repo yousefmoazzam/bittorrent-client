@@ -16,12 +16,14 @@ pub fn parse(input: &[u8]) -> BencodeType2 {
             Err(_) => todo!(),
             Ok((_, val)) => BencodeType2::Integer(val),
         },
-        Ok((leftover, len)) => BencodeType2::ByteString(leftover[..len as usize].to_vec()),
+        Ok((_, val)) => val,
     }
 }
 
-fn parse_byte_string(input: &[u8]) -> IResult<&[u8], i64> {
-    terminated(i64, tag(":")).parse(input)
+fn parse_byte_string(input: &[u8]) -> IResult<&[u8], BencodeType2> {
+    let (leftover, len) = terminated(i64, tag(":")).parse(input)?;
+    let val = leftover[..len as usize].to_vec();
+    Ok((&leftover[len as usize..], BencodeType2::ByteString(val)))
 }
 
 fn parse_integer(input: &[u8]) -> IResult<&[u8], i64> {
