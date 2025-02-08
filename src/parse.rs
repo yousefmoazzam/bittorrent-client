@@ -1,4 +1,4 @@
-use nom::{bytes::complete::tag, character::complete::i64, sequence::tuple, IResult};
+use nom::{bytes::complete::tag, character::complete::i64, IResult, Parser};
 
 pub enum BencodeType2 {
     ByteString(Vec<u8>),
@@ -12,7 +12,7 @@ pub fn parse(input: &[u8]) -> BencodeType2 {
 }
 
 fn parse_byte_string(input: &[u8]) -> IResult<&[u8], (i64, &[u8])> {
-    tuple((i64, tag(":")))(input)
+    (i64, tag(":")).parse(input)
 }
 
 #[cfg(test)]
