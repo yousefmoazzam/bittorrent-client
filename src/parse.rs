@@ -2,6 +2,7 @@ use nom::{
     branch::alt,
     bytes::complete::tag,
     character::complete::i64,
+    multi::many1,
     sequence::{delimited, terminated},
     IResult, Parser,
 };
@@ -33,8 +34,9 @@ fn parse_integer(input: &[u8]) -> IResult<&[u8], BencodeType2> {
 }
 
 fn parse_list(input: &[u8]) -> IResult<&[u8], BencodeType2> {
-    let (leftover, middle) = delimited(tag("l"), parse_byte_string, tag("e")).parse(input)?;
-    Ok((leftover, BencodeType2::List(vec![middle])))
+    let element_parser = many1(parse_byte_string);
+    let (leftover, middle) = delimited(tag("l"), element_parser, tag("e")).parse(input)?;
+    Ok((leftover, BencodeType2::List(middle)))
 }
 
 #[cfg(test)]
@@ -69,6 +71,24 @@ mod tests {
         match res {
             BencodeType2::List(val) => {
                 assert_eq!(val, vec![BencodeType2::ByteString(b"hello".to_vec())])
+            }
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn parse_list_containing_multiple_bytestrings() {
+        let data = b"l5:hello5:worlde";
+        let res = parse(&data[..]);
+        match res {
+            BencodeType2::List(val) => {
+                assert_eq!(
+                    val,
+                    vec![
+                        BencodeType2::ByteString(b"hello".to_vec()),
+                        BencodeType2::ByteString(b"world".to_vec())
+                    ]
+                )
             }
             _ => panic!(),
         }
