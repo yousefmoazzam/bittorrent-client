@@ -5,6 +5,7 @@ pub mod decode;
 pub mod download;
 pub mod encode;
 pub mod handshake;
+pub mod init;
 pub mod message;
 pub mod metainfo;
 pub mod piece;

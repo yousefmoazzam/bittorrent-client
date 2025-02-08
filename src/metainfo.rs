@@ -3,8 +3,9 @@ use std::collections::HashMap;
 use crate::BencodeType;
 
 /// Metainfo (`.torrent`) file
+#[derive(Clone)]
 pub struct Metainfo {
-    announce: String,
+    pub announce: String,
     pub info: Info,
 }
 
@@ -69,15 +70,16 @@ const PIECES_KEY: &str = "pieces";
 const SHA1_HASH_HEX_OUTPUT_SIZE: usize = 40;
 
 /// Info dict within metainfo file
+#[derive(Clone)]
 pub struct Info {
     /// Name of the file
-    name: String,
+    pub name: String,
     /// Length of the file in bytes
     pub length: usize,
     /// Length of a piece of the file in bytes
     pub piece_length: usize,
     /// String containing full pieces bencoded byte string
-    pieces: String,
+    pub pieces: String,
 }
 
 impl Info {
