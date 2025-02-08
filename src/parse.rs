@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -12,10 +14,11 @@ pub enum BencodeType2 {
     ByteString(Vec<u8>),
     Integer(i64),
     List(Vec<BencodeType2>),
+    Dict(HashMap<Vec<u8>, BencodeType2>),
 }
 
 pub fn parse(input: &[u8]) -> BencodeType2 {
-    let mut parser = alt((parse_byte_string, parse_integer, parse_list));
+    let mut parser = alt((parse_byte_string, parse_integer, parse_list, parse_dict));
     match parser.parse(input) {
         Err(_) => todo!(),
         Ok((_, val)) => val,
@@ -39,10 +42,24 @@ fn parse_list(input: &[u8]) -> IResult<&[u8], BencodeType2> {
     Ok((leftover, BencodeType2::List(middle)))
 }
 
+fn parse_dict(input: &[u8]) -> IResult<&[u8], BencodeType2> {
+    let mut map = HashMap::new();
+    let pair_parser = (parse_byte_string, parse_byte_string);
+    let (leftover, (key, val)) = delimited(tag("d"), pair_parser, tag("e")).parse(input)?;
+    match key {
+        BencodeType2::ByteString(key) => {
+            map.insert(key, val);
+            Ok((leftover, BencodeType2::Dict(map)))
+        }
+        _ => todo!(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::parse;
     use crate::parse::BencodeType2;
+    use std::collections::HashMap;
 
     #[test]
     fn parse_byte_string() {
@@ -129,6 +146,21 @@ mod tests {
                     ]
                 )
             }
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn parse_dict_containing_single_key_bytestring_value() {
+        let data = b"d5:hello5:worlde";
+        let res = parse(&data[..]);
+        let mut expected_map = HashMap::new();
+        expected_map.insert(
+            b"hello".to_vec(),
+            BencodeType2::ByteString(b"world".to_vec()),
+        );
+        match res {
+            BencodeType2::Dict(val) => assert_eq!(val, expected_map),
             _ => panic!(),
         }
     }
