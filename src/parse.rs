@@ -14,7 +14,7 @@ pub fn parse(input: &[u8]) -> BencodeType2 {
     match parse_byte_string(input) {
         Err(_) => match parse_integer(input) {
             Err(_) => todo!(),
-            Ok((_, val)) => BencodeType2::Integer(val),
+            Ok((_, val)) => val,
         },
         Ok((_, val)) => val,
     }
@@ -26,8 +26,9 @@ fn parse_byte_string(input: &[u8]) -> IResult<&[u8], BencodeType2> {
     Ok((&leftover[len as usize..], BencodeType2::ByteString(val)))
 }
 
-fn parse_integer(input: &[u8]) -> IResult<&[u8], i64> {
-    delimited(tag("i"), i64, tag("e")).parse(input)
+fn parse_integer(input: &[u8]) -> IResult<&[u8], BencodeType2> {
+    let (leftover, val) = delimited(tag("i"), i64, tag("e")).parse(input)?;
+    Ok((leftover, BencodeType2::Integer(val)))
 }
 
 #[cfg(test)]
