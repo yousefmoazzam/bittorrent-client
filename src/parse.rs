@@ -1,4 +1,5 @@
 use nom::{
+    branch::alt,
     bytes::complete::tag,
     character::complete::i64,
     sequence::{delimited, terminated},
@@ -11,11 +12,9 @@ pub enum BencodeType2 {
 }
 
 pub fn parse(input: &[u8]) -> BencodeType2 {
-    match parse_byte_string(input) {
-        Err(_) => match parse_integer(input) {
-            Err(_) => todo!(),
-            Ok((_, val)) => val,
-        },
+    let mut parser = alt((parse_byte_string, parse_integer));
+    match parser.parse(input) {
+        Err(_) => todo!(),
         Ok((_, val)) => val,
     }
 }
