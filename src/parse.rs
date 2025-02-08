@@ -6,13 +6,15 @@ use nom::{
     IResult, Parser,
 };
 
+#[derive(Debug, PartialEq)]
 pub enum BencodeType2 {
     ByteString(Vec<u8>),
     Integer(i64),
+    List(Vec<BencodeType2>),
 }
 
 pub fn parse(input: &[u8]) -> BencodeType2 {
-    let mut parser = alt((parse_byte_string, parse_integer));
+    let mut parser = alt((parse_byte_string, parse_integer, parse_list));
     match parser.parse(input) {
         Err(_) => todo!(),
         Ok((_, val)) => val,
@@ -28,6 +30,11 @@ fn parse_byte_string(input: &[u8]) -> IResult<&[u8], BencodeType2> {
 fn parse_integer(input: &[u8]) -> IResult<&[u8], BencodeType2> {
     let (leftover, val) = delimited(tag("i"), i64, tag("e")).parse(input)?;
     Ok((leftover, BencodeType2::Integer(val)))
+}
+
+fn parse_list(input: &[u8]) -> IResult<&[u8], BencodeType2> {
+    let (leftover, middle) = delimited(tag("l"), parse_byte_string, tag("e")).parse(input)?;
+    Ok((leftover, BencodeType2::List(vec![middle])))
 }
 
 #[cfg(test)]
@@ -51,6 +58,18 @@ mod tests {
         let res = parse(&data[..]);
         match res {
             BencodeType2::Integer(val) => assert_eq!(val, 42),
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn parse_list_containing_single_bytestring() {
+        let data = b"l5:helloe";
+        let res = parse(&data[..]);
+        match res {
+            BencodeType2::List(val) => {
+                assert_eq!(val, vec![BencodeType2::ByteString(b"hello".to_vec())])
+            }
             _ => panic!(),
         }
     }
