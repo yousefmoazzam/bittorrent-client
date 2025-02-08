@@ -34,7 +34,7 @@ fn parse_integer(input: &[u8]) -> IResult<&[u8], BencodeType2> {
 }
 
 fn parse_list(input: &[u8]) -> IResult<&[u8], BencodeType2> {
-    let element_parser = many1(alt((parse_byte_string, parse_integer)));
+    let element_parser = many1(alt((parse_byte_string, parse_integer, parse_list)));
     let (leftover, middle) = delimited(tag("l"), element_parser, tag("e")).parse(input)?;
     Ok((leftover, BencodeType2::List(middle)))
 }
@@ -105,6 +105,27 @@ mod tests {
                     vec![
                         BencodeType2::Integer(42),
                         BencodeType2::ByteString(b"hello".to_vec()),
+                    ]
+                )
+            }
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn parse_nested_list() {
+        let data = b"li42el5:hello5:worldee";
+        let res = parse(&data[..]);
+        match res {
+            BencodeType2::List(val) => {
+                assert_eq!(
+                    val,
+                    vec![
+                        BencodeType2::Integer(42),
+                        BencodeType2::List(vec![
+                            BencodeType2::ByteString(b"hello".to_vec()),
+                            BencodeType2::ByteString(b"world".to_vec()),
+                        ])
                     ]
                 )
             }
