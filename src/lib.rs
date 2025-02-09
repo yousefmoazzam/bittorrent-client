@@ -10,6 +10,7 @@ pub mod message;
 pub mod metainfo;
 pub mod parse;
 pub mod piece;
+pub mod serialise;
 pub mod torrent;
 pub mod tracker;
 pub mod work;
