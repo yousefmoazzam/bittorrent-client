@@ -1,6 +1,8 @@
 use crate::parse::BencodeType2;
 
 const COLON_ASCII: u8 = 58;
+const L_ASCII: u8 = 108;
+const E_ASCII: u8 = 101;
 
 pub fn serialise(data: BencodeType2) -> Vec<u8> {
     match data {
@@ -13,6 +15,14 @@ pub fn serialise(data: BencodeType2) -> Vec<u8> {
             out.push(COLON_ASCII);
             out.append(&mut string);
             out
+        }
+        BencodeType2::List(list) => {
+            let mut elems = vec![L_ASCII];
+            for item in list.into_iter() {
+                elems.append(&mut serialise(item));
+            }
+            elems.push(E_ASCII);
+            elems
         }
         _ => todo!(),
     }
@@ -37,6 +47,19 @@ mod tests {
         let bytestring = b"hello";
         let data = BencodeType2::ByteString(bytestring.to_vec());
         let expected_output = b"5:hello".to_vec();
+        let output = serialise(data);
+        assert_eq!(output, expected_output);
+    }
+
+    #[test]
+    fn serialise_list() {
+        let integer = 42;
+        let bytestring = b"hello";
+        let data = BencodeType2::List(vec![
+            BencodeType2::ByteString(bytestring.to_vec()),
+            BencodeType2::Integer(integer),
+        ]);
+        let expected_output = b"l5:helloi42ee";
         let output = serialise(data);
         assert_eq!(output, expected_output);
     }
