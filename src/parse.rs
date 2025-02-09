@@ -46,7 +46,7 @@ fn parse_dict(input: &[u8]) -> IResult<&[u8], BencodeType2> {
     let mut map = HashMap::new();
     let pair_parser = many1((
         parse_byte_string,
-        alt((parse_byte_string, parse_integer, parse_list)),
+        alt((parse_byte_string, parse_integer, parse_list, parse_dict)),
     ));
     let (leftover, pairs) = delimited(tag("d"), pair_parser, tag("e")).parse(input)?;
     for (key, val) in pairs.into_iter() {
@@ -216,6 +216,24 @@ mod tests {
         );
         match res {
             BencodeType2::Dict(val) => assert_eq!(val, expected_map),
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn parse_nested_dict() {
+        let data = b"d4:datad5:hello5:world3:fooi42eee";
+        let res = parse(&data[..]);
+        let mut expected_outer_map = HashMap::new();
+        let mut expected_inner_map = HashMap::new();
+        expected_inner_map.insert(
+            b"hello".to_vec(),
+            BencodeType2::ByteString(b"world".to_vec()),
+        );
+        expected_inner_map.insert(b"foo".to_vec(), BencodeType2::Integer(42));
+        expected_outer_map.insert(b"data".to_vec(), BencodeType2::Dict(expected_inner_map));
+        match res {
+            BencodeType2::Dict(val) => assert_eq!(val, expected_outer_map),
             _ => panic!(),
         }
     }
