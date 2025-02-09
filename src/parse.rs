@@ -37,7 +37,12 @@ fn parse_integer(input: &[u8]) -> IResult<&[u8], BencodeType2> {
 }
 
 fn parse_list(input: &[u8]) -> IResult<&[u8], BencodeType2> {
-    let element_parser = many1(alt((parse_byte_string, parse_integer, parse_list)));
+    let element_parser = many1(alt((
+        parse_byte_string,
+        parse_integer,
+        parse_list,
+        parse_dict,
+    )));
     let (leftover, middle) = delimited(tag("l"), element_parser, tag("e")).parse(input)?;
     Ok((leftover, BencodeType2::List(middle)))
 }
@@ -234,6 +239,23 @@ mod tests {
         expected_outer_map.insert(b"data".to_vec(), BencodeType2::Dict(expected_inner_map));
         match res {
             BencodeType2::Dict(val) => assert_eq!(val, expected_outer_map),
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn parse_list_containing_dict() {
+        let data = b"ld5:hello5:worldee";
+        let res = parse(&data[..]);
+        let mut expected_map = HashMap::new();
+        expected_map.insert(
+            b"hello".to_vec(),
+            BencodeType2::ByteString(b"world".to_vec()),
+        );
+        match res {
+            BencodeType2::List(val) => {
+                assert_eq!(val, vec![BencodeType2::Dict(expected_map)])
+            }
             _ => panic!(),
         }
     }
