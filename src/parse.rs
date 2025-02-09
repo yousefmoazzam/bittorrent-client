@@ -73,7 +73,7 @@ mod tests {
 
     #[test]
     fn parse_byte_string() {
-        let data = b"5:hello5:world";
+        let data = b"5:hello";
         let res = parse(&data[..]);
         match res {
             BencodeType2::ByteString(val) => assert_eq!(val, b"hello"),
@@ -83,7 +83,7 @@ mod tests {
 
     #[test]
     fn parse_integer() {
-        let data = b"i42e5:hello";
+        let data = b"i42e";
         let res = parse(&data[..]);
         match res {
             BencodeType2::Integer(val) => assert_eq!(val, 42),
