@@ -44,7 +44,10 @@ fn parse_list(input: &[u8]) -> IResult<&[u8], BencodeType2> {
 
 fn parse_dict(input: &[u8]) -> IResult<&[u8], BencodeType2> {
     let mut map = HashMap::new();
-    let pair_parser = many1((parse_byte_string, alt((parse_byte_string, parse_integer))));
+    let pair_parser = many1((
+        parse_byte_string,
+        alt((parse_byte_string, parse_integer, parse_list)),
+    ));
     let (leftover, pairs) = delimited(tag("d"), pair_parser, tag("e")).parse(input)?;
     for (key, val) in pairs.into_iter() {
         match key {
@@ -193,6 +196,24 @@ mod tests {
             BencodeType2::ByteString(b"world".to_vec()),
         );
         expected_map.insert(b"foo".to_vec(), BencodeType2::Integer(42));
+        match res {
+            BencodeType2::Dict(val) => assert_eq!(val, expected_map),
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn parse_dict_containing_single_key_list_value() {
+        let data = b"d4:datal5:hello5:worldee";
+        let res = parse(&data[..]);
+        let mut expected_map = HashMap::new();
+        expected_map.insert(
+            b"data".to_vec(),
+            BencodeType2::List(vec![
+                BencodeType2::ByteString(b"hello".to_vec()),
+                BencodeType2::ByteString(b"world".to_vec()),
+            ]),
+        );
         match res {
             BencodeType2::Dict(val) => assert_eq!(val, expected_map),
             _ => panic!(),
