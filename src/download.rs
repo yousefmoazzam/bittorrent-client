@@ -5,21 +5,10 @@ use crate::worker::Worker;
 
 /// Download file
 pub async fn download(torrent: Torrent) -> Vec<u8> {
-    let mut piece_bytes = Vec::new();
-    for piece in torrent.metainfo.info.pieces() {
-        let mut bytes = [""; 20];
-        for (idx, char_idx) in (0..40).step_by(2).enumerate() {
-            bytes[idx] = &piece[char_idx..char_idx + 2];
-        }
-        piece_bytes.push(bytes);
-    }
-    let no_of_pieces = piece_bytes.len();
-    let piece_hashes = piece_bytes
-        .into_iter()
-        .map(str_arr_to_u8_arr)
-        .collect::<Vec<_>>();
-    let work = piece_hashes
-        .into_iter()
+    let work = torrent
+        .metainfo
+        .info
+        .pieces()
         .enumerate()
         .map(|(idx, hash)| Work {
             index: u64::try_from(idx).unwrap(),
@@ -27,6 +16,7 @@ pub async fn download(torrent: Torrent) -> Vec<u8> {
             hash: hash.to_vec(),
         })
         .collect::<Vec<_>>();
+    let no_of_pieces = work.len();
     let queue = SharedQueue::new(work);
     let (tx, rx) = tokio::sync::mpsc::channel(no_of_pieces);
 
@@ -49,10 +39,6 @@ pub async fn download(torrent: Torrent) -> Vec<u8> {
     buf
 }
 
-fn str_arr_to_u8_arr(arr: [&str; 20]) -> [u8; 20] {
-    arr.map(|val| u8::from_str_radix(val, 16).unwrap())
-}
-
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -64,8 +50,9 @@ mod tests {
     use crate::handshake::Handshake;
     use crate::message::Message;
     use crate::metainfo::Metainfo;
+    use crate::parse::BencodeType2;
     use crate::tracker::Peer;
-    use crate::{BencodeType, HANDSHAKE_BYTES_LEN, PEER_ID, PSTR};
+    use crate::{HANDSHAKE_BYTES_LEN, PEER_ID, PSTR};
 
     use super::*;
 
@@ -80,34 +67,35 @@ mod tests {
             port,
         }];
 
-        let announce = "hello";
+        let announce = b"hello";
         let mut metainfo_map = HashMap::new();
         metainfo_map.insert(
-            "announce".to_string(),
-            BencodeType::ByteString(announce.to_string()),
+            b"announce".to_vec(),
+            BencodeType2::ByteString(announce.to_vec()),
         );
 
-        let name = "hello";
+        let name = b"hello";
         let length = 128;
         let piece_length = 64;
-        let hello_sha1 = "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d";
-        let goodbye_sha1 = "3c8ec4874488f6090a157b014ce3397ca8e06d4f";
+        let hello_sha1 =
+            b"\xaa\xf4\xc6\x1d\xdc\xc5\xe8\xa2\xda\xbe\xde\x0f\x3b\x48\x2c\xd9\xae\xa9\x43\x4d";
+        let goodbye_sha1 =
+            b"\x3c\x8e\xc4\x87\x44\x88\xf6\x09\x0a\x15\x7b\x01\x4c\xe3\x39\x7c\xa8\xe0\x6d\x4f";
+        let mut piece_hashes = hello_sha1.to_vec();
+        piece_hashes.append(&mut goodbye_sha1.to_vec());
         let mut info_map = HashMap::new();
+        info_map.insert(b"name".to_vec(), BencodeType2::ByteString(name.to_vec()));
+        info_map.insert(b"length".to_vec(), BencodeType2::Integer(length));
         info_map.insert(
-            "name".to_string(),
-            BencodeType::ByteString(name.to_string()),
-        );
-        info_map.insert("length".to_string(), BencodeType::Integer(length));
-        info_map.insert(
-            "piece length".to_string(),
-            BencodeType::Integer(piece_length),
+            b"piece length".to_vec(),
+            BencodeType2::Integer(piece_length),
         );
         info_map.insert(
-            "pieces".to_string(),
-            BencodeType::ByteString(format!("{}{}", hello_sha1, goodbye_sha1)),
+            b"pieces".to_vec(),
+            BencodeType2::ByteString(piece_hashes.clone()),
         );
-        metainfo_map.insert("info".to_string(), BencodeType::Dict(info_map));
-        let data = BencodeType::Dict(metainfo_map);
+        metainfo_map.insert(b"info".to_vec(), BencodeType2::Dict(info_map));
+        let data = BencodeType2::Dict(metainfo_map);
         let metainfo = Metainfo::new(data).unwrap();
         let torrent = Torrent::new(metainfo, peers);
 
@@ -152,8 +140,8 @@ mod tests {
         for idx in 0..NO_OF_PIECES {
             let piece = &original_data
                 [idx as usize * PIECE_LEN as usize..(idx as usize + 1) * PIECE_LEN as usize];
-            let hash = sha1_smol::Sha1::from(piece).digest().to_string();
-            piece_hashes.push(hash);
+            let hash = sha1_smol::Sha1::from(piece).digest().bytes();
+            piece_hashes.append(&mut hash.to_vec());
         }
 
         let ip = "127.0.0.1";
@@ -165,30 +153,24 @@ mod tests {
             port,
         }];
 
-        let announce = "hello";
+        let announce = b"hello";
         let mut metainfo_map = HashMap::new();
         metainfo_map.insert(
-            "announce".to_string(),
-            BencodeType::ByteString(announce.to_string()),
+            b"announce".to_vec(),
+            BencodeType2::ByteString(announce.to_vec()),
         );
 
-        let name = "hello";
+        let name = b"hello";
         let mut info_map = HashMap::new();
+        info_map.insert(b"name".to_vec(), BencodeType2::ByteString(name.to_vec()));
+        info_map.insert(b"length".to_vec(), BencodeType2::Integer(FILE_LEN));
         info_map.insert(
-            "name".to_string(),
-            BencodeType::ByteString(name.to_string()),
+            b"piece length".to_vec(),
+            BencodeType2::Integer(PIECE_LEN as i64),
         );
-        info_map.insert("length".to_string(), BencodeType::Integer(FILE_LEN));
-        info_map.insert(
-            "piece length".to_string(),
-            BencodeType::Integer(PIECE_LEN as i64),
-        );
-        info_map.insert(
-            "pieces".to_string(),
-            BencodeType::ByteString(format!("{}{}", piece_hashes[0], piece_hashes[1])),
-        );
-        metainfo_map.insert("info".to_string(), BencodeType::Dict(info_map));
-        let data = BencodeType::Dict(metainfo_map);
+        info_map.insert(b"pieces".to_vec(), BencodeType2::ByteString(piece_hashes));
+        metainfo_map.insert(b"info".to_vec(), BencodeType2::Dict(info_map));
+        let data = BencodeType2::Dict(metainfo_map);
         let metainfo = Metainfo::new(data).unwrap();
         let torrent = Torrent::new(metainfo, peers);
 

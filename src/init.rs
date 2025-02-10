@@ -7,7 +7,7 @@ use crate::{
 
 /// Perform required setup prior to attempting file download
 pub async fn init(metainfo: Metainfo) -> Torrent {
-    let bencoded_info = crate::encode::encode(metainfo.info.serialise());
+    let bencoded_info = crate::serialise::serialise(metainfo.info.serialise());
     let info_hash = sha1_smol::Sha1::from(bencoded_info).digest().bytes();
     let request = Request::new(
         &metainfo.announce,
@@ -47,20 +47,22 @@ mod tests {
         };
         let mut tracker = mockito::Server::new_with_opts_async(server_opts).await;
 
+        let piece_one_hash =
+            b"\xaa\xf4\xc6\x1d\xdc\xc5\xe8\xa2\xda\xbe\xde\x0f\x3b\x48\x2c\xd9\xae\xa9\x43\x4d";
+        let piece_two_hash =
+            b"\x3c\x8e\xc4\x87\x44\x88\xf6\x09\x0a\x15\x7b\x01\x4c\xe3\x39\x7c\xa8\xe0\x6d\x4f";
+        let mut piece_hashes = piece_one_hash.to_vec();
+        piece_hashes.append(&mut piece_two_hash.to_vec());
         let metainfo = Metainfo {
             announce: tracker.url(),
             info: Info {
                 name: "file".to_string(),
                 length: file_len,
                 piece_length: 64,
-                pieces: format!(
-                    "{}{}",
-                    "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d",
-                    "3c8ec4874488f6090a157b014ce3397ca8e06d4f"
-                ),
+                pieces: piece_hashes,
             },
         };
-        let bencoded_info = crate::encode::encode(metainfo.info.serialise());
+        let bencoded_info = crate::serialise::serialise(metainfo.info.serialise());
         let info_hash = sha1_smol::Sha1::from(bencoded_info).digest().bytes();
         let info_hash_str = info_hash
             .iter()
