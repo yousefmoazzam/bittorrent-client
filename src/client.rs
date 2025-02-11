@@ -9,7 +9,7 @@ pub struct Client<T: AsyncRead + AsyncWrite + Unpin> {
     /// Socket for peer communication
     socket: T,
     /// ID of connected peer
-    pub peer_id: String,
+    pub peer_id: Vec<u8>,
     /// Whether the connection is choked or not
     pub choked: bool,
     /// Bitfield associated with peer
@@ -36,7 +36,7 @@ where
     }
 
     /// Send initial handshake to peer
-    async fn handshake(mut socket: T, info_hash: Vec<u8>) -> std::io::Result<String> {
+    async fn handshake(mut socket: T, info_hash: Vec<u8>) -> std::io::Result<Vec<u8>> {
         let initial_handshake = Handshake::new(PSTR.to_string(), info_hash, PEER_ID.into());
         socket.write_all(&initial_handshake.serialise()[..]).await?;
         let mut response_handshake = [0; HANDSHAKE_BYTES_LEN];
@@ -44,9 +44,7 @@ where
 
         let deserialised_response = Handshake::deserialise(&response_handshake[..]);
         match deserialised_response.info_hash == initial_handshake.info_hash {
-            true => Ok(std::str::from_utf8(&deserialised_response.peer_id)
-                .unwrap()
-                .to_string()),
+            true => Ok(deserialised_response.peer_id),
             false => {
                 let msg = format!(
                     "Info hash mismatch: us={}, peer={}",
@@ -166,7 +164,7 @@ mod tests {
     #[tokio::test]
     async fn return_client_if_successful_handshake_and_receive_bitifield_message() {
         let info_hash = (0x00..0x14).collect::<Vec<_>>();
-        let their_peer_id = "-DEF123-efgh12345678";
+        let their_peer_id = b"-DEF123-efgh12345678";
 
         let initial_handshake = Handshake::new(PSTR.to_string(), info_hash.clone(), PEER_ID.into());
         let response_handshake =
@@ -194,7 +192,7 @@ mod tests {
     #[test]
     fn return_client_if_successful_handshake_and_receive_bitifield_message_real_socket() {
         let info_hash = (0x00..0x14).collect::<Vec<_>>();
-        let their_peer_id = "-DEF123-efgh12345678";
+        let their_peer_id = b"-DEF123-efgh12345678";
 
         let response_handshake =
             Handshake::new(PSTR.to_string(), info_hash.clone(), their_peer_id.into());
@@ -241,7 +239,7 @@ mod tests {
     #[tokio::test]
     async fn client_receives_correct_message_from_peer() {
         let info_hash = (0x00..0x14).collect::<Vec<_>>();
-        let their_peer_id = "-DEF123-efgh12345678";
+        let their_peer_id = b"-DEF123-efgh12345678";
 
         let len: u32 = 1;
         let id = 0x01;
@@ -251,7 +249,7 @@ mod tests {
         let mock_socket = tokio_test::io::Builder::new().read(&buf).build();
         let mut client = Client {
             socket: mock_socket,
-            peer_id: their_peer_id.to_string(),
+            peer_id: their_peer_id.to_vec(),
             choked: true,
             bitfield: Bitfield::new(vec![0x05]),
             info_hash,
@@ -265,7 +263,7 @@ mod tests {
     #[tokio::test]
     async fn client_sends_correct_message_data_to_peer() {
         let info_hash = (0x00..0x14).collect::<Vec<_>>();
-        let their_peer_id = "-DEF123-efgh12345678";
+        let their_peer_id = b"-DEF123-efgh12345678";
         let message = Message::Unchoke;
         let len = 1;
         let id = 1;
@@ -274,7 +272,7 @@ mod tests {
         let mock_socket = tokio_test::io::Builder::new().write(&expected_buf).build();
         let mut client = Client {
             socket: mock_socket,
-            peer_id: their_peer_id.to_string(),
+            peer_id: their_peer_id.to_vec(),
             choked: true,
             bitfield: Bitfield::new(vec![0x05]),
             info_hash,
@@ -285,14 +283,14 @@ mod tests {
     #[tokio::test]
     async fn client_sets_choked_false_if_peer_sends_unchoke_message() {
         let info_hash = (0x00..0x14).collect::<Vec<_>>();
-        let their_peer_id = "-DEF123-efgh12345678";
+        let their_peer_id = b"-DEF123-efgh12345678";
 
         let mock_socket = tokio_test::io::Builder::new()
             .read(&Message::Unchoke.serialise())
             .build();
         let mut client = Client {
             socket: mock_socket,
-            peer_id: their_peer_id.to_string(),
+            peer_id: their_peer_id.to_vec(),
             choked: true,
             bitfield: Bitfield::new(vec![0x05]),
             info_hash,
@@ -304,7 +302,7 @@ mod tests {
     #[tokio::test]
     async fn client_sets_choked_true_if_peer_sends_choke_message() {
         let info_hash = (0x00..0x14).collect::<Vec<_>>();
-        let their_peer_id = "-DEF123-efgh12345678";
+        let their_peer_id = b"-DEF123-efgh12345678";
 
         let mock_socket = tokio_test::io::Builder::new()
             .read(&Message::Unchoke.serialise())
@@ -312,7 +310,7 @@ mod tests {
             .build();
         let mut client = Client {
             socket: mock_socket,
-            peer_id: their_peer_id.to_string(),
+            peer_id: their_peer_id.to_vec(),
             choked: true,
             bitfield: Bitfield::new(vec![0x05]),
             info_hash,
