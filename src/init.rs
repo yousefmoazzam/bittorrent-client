@@ -70,33 +70,16 @@ mod tests {
             .collect::<Vec<String>>()
             .join("");
 
-        let interval_value = 900;
         let peer_one_ip = [0xC0, 0x00, 0x02, 0x7B]; // 192.0.2.123
         let peer_two_ip = [0xC0, 0x00, 0x02, 0x7C]; // 192.0.2.124
         let port_bytes_network_order = [0x1A, 0xE1]; // 6881
         let mut peers_data = Vec::new();
-        for ip in [peer_one_ip, peer_two_ip] {
-            peers_data.push(format!(
-                "{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
-                ip[0],
-                ip[1],
-                ip[2],
-                ip[3],
-                port_bytes_network_order[0],
-                port_bytes_network_order[1]
-            ));
-        }
-        let peers_data = peers_data.join("");
-        let response_data = format!(
-            "d{}:{}i{}e{}:{}{}:{}e",
-            "interval".len(),
-            "interval",
-            interval_value,
-            "peers".len(),
-            "peers",
-            peers_data.len(),
-            peers_data
-        );
+        peers_data.append(&mut peer_one_ip.to_vec());
+        peers_data.append(&mut port_bytes_network_order.to_vec());
+        peers_data.append(&mut peer_two_ip.to_vec());
+        peers_data.append(&mut port_bytes_network_order.to_vec());
+        let response_data =
+            b"d8:intervali900e5:peers12:\xc0\x00\x02\x7b\x1a\xe1\xc0\x00\x02\x7c\x1a\xe1e";
         let mock = tracker
             .mock("GET", "/")
             .match_query(mockito::Matcher::AllOf(vec![
