@@ -1,7 +1,11 @@
 use crate::client::Client;
+use crate::piece::Piece;
 use crate::torrent::Torrent;
+use crate::tracker::Peer;
 use crate::work::{SharedQueue, Work};
 use crate::worker::Worker;
+use tokio::net::TcpStream;
+use tokio::sync::mpsc::Sender;
 use tracing::{info, warn};
 
 /// Download file
@@ -43,16 +47,7 @@ pub async fn download(torrent: Torrent) -> Vec<u8> {
                     Ok(client) => {
                         info!("Established peer protocol with {}:{}", peer.ip, peer.port);
                         tokio::spawn(async move {
-                            let mut worker = Worker::new(client, tx, queue);
-                            match worker.download().await {
-                                Err(e) => warn!(
-                                    "Encountered error during download from {}:{}, got error: {}",
-                                    peer.ip, peer.port, e
-                                ),
-                                Ok(_) => {
-                                    info!("Successful download from {}:{}", peer.ip, peer.port)
-                                }
-                            };
+                            process(&peer, client, tx, queue).await;
                         });
                     }
                 };
@@ -64,6 +59,19 @@ pub async fn download(torrent: Torrent) -> Vec<u8> {
     let mut buf = vec![0; torrent.metainfo.info.length];
     crate::piece::receiver(&mut buf, torrent.metainfo.info.piece_length, rx).await;
     buf
+}
+
+async fn process(peer: &Peer, client: Client<TcpStream>, tx: Sender<Piece>, queue: SharedQueue) {
+    let mut worker = Worker::new(client, tx, queue);
+    match worker.download().await {
+        Err(e) => warn!(
+            "Encountered error during download from {}:{}, got error: {}",
+            peer.ip, peer.port, e
+        ),
+        Ok(_) => {
+            info!("Successful download from {}:{}", peer.ip, peer.port)
+        }
+    };
 }
 
 #[cfg(test)]
