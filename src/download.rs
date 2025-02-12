@@ -35,8 +35,8 @@ pub async fn download(torrent: Torrent) -> Vec<u8> {
             }
             Ok(socket) => {
                 info!("Established TCP connection with {}:{}", peer.ip, peer.port);
+                let client = Client::new(socket, info_hash).await.unwrap();
                 tokio::spawn(async move {
-                    let client = Client::new(socket, info_hash).await.unwrap();
                     let mut worker = Worker::new(client, tx, queue);
                     worker.download().await.unwrap();
                 });
