@@ -2,6 +2,7 @@ use crate::client::Client;
 use crate::torrent::Torrent;
 use crate::work::{SharedQueue, Work};
 use crate::worker::Worker;
+use tracing::{info, warn};
 
 /// Download file
 pub async fn download(torrent: Torrent) -> Vec<u8> {
@@ -27,13 +28,13 @@ pub async fn download(torrent: Torrent) -> Vec<u8> {
         let addr = format!("{}:{}", peer.ip, peer.port);
         match tokio::net::TcpStream::connect(addr).await {
             Err(e) => {
-                println!(
-                    "Tried connecting to {}:{}, got error: {}",
+                warn!(
+                    "Unable to establish TCP connection with {}:{}, got error: {}",
                     peer.ip, peer.port, e
                 );
             }
             Ok(socket) => {
-                println!("Connected to {}:{}", peer.ip, peer.port);
+                info!("Established TCP connection with {}:{}", peer.ip, peer.port);
                 tokio::spawn(async move {
                     let client = Client::new(socket, info_hash).await.unwrap();
                     let mut worker = Worker::new(client, tx, queue);
