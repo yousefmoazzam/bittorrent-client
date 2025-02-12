@@ -44,7 +44,15 @@ pub async fn download(torrent: Torrent) -> Vec<u8> {
                         info!("Established peer protocol with {}:{}", peer.ip, peer.port);
                         tokio::spawn(async move {
                             let mut worker = Worker::new(client, tx, queue);
-                            worker.download().await.unwrap();
+                            match worker.download().await {
+                                Err(e) => warn!(
+                                    "Encountered error during download from {}:{}, got error: {}",
+                                    peer.ip, peer.port, e
+                                ),
+                                Ok(_) => {
+                                    info!("Successful download from {}:{}", peer.ip, peer.port)
+                                }
+                            };
                         });
                     }
                 };
