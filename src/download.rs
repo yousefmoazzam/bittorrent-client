@@ -24,9 +24,9 @@ pub async fn download(torrent: Torrent) -> Vec<u8> {
         let info_hash = torrent.info_hash.clone();
         let queue = queue.clone();
         let tx = tx.clone();
+        let addr = format!("{}:{}", peer.ip, peer.port);
+        let socket = tokio::net::TcpStream::connect(addr).await.unwrap();
         tokio::spawn(async move {
-            let addr = format!("{}:{}", peer.ip, peer.port);
-            let socket = tokio::net::TcpStream::connect(addr).await.unwrap();
             let client = Client::new(socket, info_hash).await.unwrap();
             let mut worker = Worker::new(client, tx, queue);
             worker.download().await.unwrap();
