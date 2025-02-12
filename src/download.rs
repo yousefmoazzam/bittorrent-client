@@ -55,9 +55,6 @@ mod tests {
     use std::collections::HashMap;
     use std::io::{Read, Write};
 
-    use tokio::io::AsyncReadExt;
-    use tokio::net::TcpListener;
-
     use crate::handshake::Handshake;
     use crate::message::Message;
     use crate::metainfo::Metainfo;
@@ -66,67 +63,6 @@ mod tests {
     use crate::{HANDSHAKE_BYTES_LEN, PEER_ID, PSTR};
 
     use super::*;
-
-    #[tokio::test]
-    async fn sends_handshake_to_peer() {
-        let ip = "127.0.0.1";
-        let port = 12345;
-        let addr = format!("{}:{}", ip, port);
-        let listener = TcpListener::bind(addr).await.unwrap();
-        let peers = vec![Peer {
-            ip: std::net::Ipv4Addr::new(127, 0, 0, 1),
-            port,
-        }];
-
-        let announce = b"hello";
-        let mut metainfo_map = HashMap::new();
-        metainfo_map.insert(
-            b"announce".to_vec(),
-            BencodeType2::ByteString(announce.to_vec()),
-        );
-
-        let name = b"hello";
-        let length = 128;
-        let piece_length = 64;
-        let hello_sha1 =
-            b"\xaa\xf4\xc6\x1d\xdc\xc5\xe8\xa2\xda\xbe\xde\x0f\x3b\x48\x2c\xd9\xae\xa9\x43\x4d";
-        let goodbye_sha1 =
-            b"\x3c\x8e\xc4\x87\x44\x88\xf6\x09\x0a\x15\x7b\x01\x4c\xe3\x39\x7c\xa8\xe0\x6d\x4f";
-        let mut piece_hashes = hello_sha1.to_vec();
-        piece_hashes.append(&mut goodbye_sha1.to_vec());
-        let mut info_map = HashMap::new();
-        info_map.insert(b"name".to_vec(), BencodeType2::ByteString(name.to_vec()));
-        info_map.insert(b"length".to_vec(), BencodeType2::Integer(length));
-        info_map.insert(
-            b"piece length".to_vec(),
-            BencodeType2::Integer(piece_length),
-        );
-        info_map.insert(
-            b"pieces".to_vec(),
-            BencodeType2::ByteString(piece_hashes.clone()),
-        );
-        metainfo_map.insert(b"info".to_vec(), BencodeType2::Dict(info_map));
-        let data = BencodeType2::Dict(metainfo_map);
-        let metainfo = Metainfo::new(data).unwrap();
-        let torrent = Torrent::new(metainfo, peers);
-
-        // Launch tokio task to accept a TCP connection when the client requests a connection
-        // during downloading
-        let initial_handshake =
-            Handshake::new(PSTR.to_string(), torrent.info_hash.clone(), PEER_ID.into());
-        let initial_handshake_data = initial_handshake.serialise();
-        let mut buf = vec![0; initial_handshake_data.len()];
-        let mock_peer_socket_handle = tokio::spawn(async move {
-            let (mut socket, _) = listener.accept().await.unwrap();
-            socket.read_exact(&mut buf).await.unwrap();
-            buf
-        });
-
-        download(torrent).await;
-        let filled_buf = mock_peer_socket_handle.await.unwrap();
-
-        assert_eq!(filled_buf, initial_handshake_data);
-    }
 
     #[tokio::test]
     async fn downloads_file_from_single_peer() {
@@ -227,6 +163,8 @@ mod tests {
             },
         ];
 
+        let initial_handshake =
+            Handshake::new(PSTR.to_string(), torrent.info_hash.clone(), PEER_ID.into());
         let (tx, rx) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
             let mut handshake_buf = [0; HANDSHAKE_BYTES_LEN];
@@ -235,6 +173,7 @@ mod tests {
             let mut piece_request_buf = [0; 29];
             let (mut socket, _) = listener.accept().unwrap();
             socket.read_exact(&mut handshake_buf).unwrap();
+            assert_eq!(handshake_buf, &initial_handshake.serialise()[..]);
             socket.write_all(&response_handshake.serialise()).unwrap();
             socket.write_all(&bitfield_message).unwrap();
             socket.read_exact(&mut read_unchoke_buf).unwrap();
