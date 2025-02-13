@@ -36,7 +36,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Worker<T> {
                 continue;
             }
             let index = work.index;
-            let buf = self.download_piece(&work).await;
+            let buf = self.download_piece(&work).await?;
             if self.check_integrity(&work, &buf) {
                 self.client.send(Message::Have(index)).await.unwrap();
                 self.piece_sender.send(Piece { index, buf }).await.unwrap();
@@ -49,7 +49,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Worker<T> {
     }
 
     /// Download piece described by [`Work`]
-    async fn download_piece(&mut self, work: &Work) -> Vec<u8> {
+    async fn download_piece(&mut self, work: &Work) -> Result<Vec<u8>, std::io::Error> {
         let mut buf = vec![0; work.length as usize];
         let mut bytes_downloaded = 0;
         let mut block_index = 0;
@@ -77,13 +77,17 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Worker<T> {
                 }
             }
 
-            let message = self.client.receive().await.unwrap();
-            if let Message::Piece { begin, block, .. } = message {
-                buf[begin as usize..begin as usize + block.len()].copy_from_slice(&block);
-                bytes_downloaded += u64::try_from(block.len()).unwrap();
+            match self.client.receive().await {
+                Err(e) => return Err(e),
+                Ok(message) => {
+                    if let Message::Piece { begin, block, .. } = message {
+                        buf[begin as usize..begin as usize + block.len()].copy_from_slice(&block);
+                        bytes_downloaded += u64::try_from(block.len()).unwrap();
+                    }
+                }
             }
         }
-        buf
+        Ok(buf)
     }
 
     /// Check SHA1 hash of downloaded piece is as expected
@@ -968,5 +972,59 @@ mod tests {
         crate::piece::receiver(&mut receiver_buf, PIECE_LEN as usize, rx).await;
 
         assert_eq!(receiver_buf, original_data);
+    }
+
+    #[tokio::test]
+    async fn worker_propagates_unexpected_eof_error_if_peer_unexpectedly_closes_connection() {
+        // Setup file data
+        const NO_OF_PIECES: u8 = 1;
+        const PIECE_LEN: u8 = 64;
+        let original_data = (0..PIECE_LEN).collect::<Vec<u8>>();
+
+        // Calculate SHA1 hash of the piece
+        let piece_hash = sha1_smol::Sha1::from(original_data).digest().bytes();
+
+        // Setup work queue
+        let work = vec![Work {
+            index: 0,
+            length: PIECE_LEN as u64,
+            hash: piece_hash.to_vec(),
+        }];
+        let queue = SharedQueue::new(work);
+
+        // Setup info for preliminary client interactions with peer
+        let info_hash = (0x00..0x14).collect::<Vec<_>>();
+        let their_peer_id = "-DEF123-efgh12345678";
+        let initial_handshake = Handshake::new(PSTR.to_string(), info_hash.clone(), PEER_ID.into());
+        let response_handshake =
+            Handshake::new(PSTR.to_string(), info_hash.clone(), their_peer_id.into());
+        let len: u32 = 2;
+        let id = 0x05;
+        let payload = vec![0b10000000];
+        let mut bitfield_message = u32::to_be_bytes(len).to_vec();
+        bitfield_message.push(id);
+        bitfield_message.append(&mut payload.clone());
+
+        // Setup mock socket to produce an unexpected EOF error to mimic the peer unexpectedly
+        // closing their side of the connection (after all other preliminary interactions, such as
+        // a sucessful handshake)
+        let socket = tokio_test::io::Builder::new()
+            .write(&initial_handshake.serialise())
+            .read(&response_handshake.serialise())
+            .read(&bitfield_message)
+            .write(&Message::Unchoke.serialise())
+            .write(&Message::Interested.serialise())
+            .read_error(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, ""))
+            .build();
+        let client = Client::new(socket, info_hash).await.unwrap();
+
+        let mut receiver_buf = [0; PIECE_LEN as usize];
+        let (tx, rx) = tokio::sync::mpsc::channel(NO_OF_PIECES as usize);
+        let mut worker = Worker::new(client, tx, queue);
+        let ret = tokio::spawn(async move { worker.download().await })
+            .await
+            .unwrap();
+        crate::piece::receiver(&mut receiver_buf, PIECE_LEN as usize, rx).await;
+        assert!(ret.is_err_and(|err| matches!(err.kind(), std::io::ErrorKind::UnexpectedEof)));
     }
 }
