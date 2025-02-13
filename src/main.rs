@@ -6,6 +6,7 @@ use std::{
     path::PathBuf,
 };
 use tracing::info;
+use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
 struct Cli {
@@ -18,7 +19,10 @@ struct Cli {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    tracing_subscriber::fmt().with_target(false).init();
+    tracing_subscriber::fmt()
+        .with_target(false)
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
     let cli = Cli::parse();
     if !cli.metainfo.exists() {
         info!("File doesn't exist: {:?}", cli.metainfo);
