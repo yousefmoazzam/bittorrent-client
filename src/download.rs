@@ -6,7 +6,7 @@ use crate::work::{SharedQueue, Work};
 use crate::worker::Worker;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::Sender;
-use tracing::{info, warn};
+use tracing::{info, instrument, warn};
 
 /// Download file
 pub async fn download(torrent: Torrent) -> Vec<u8> {
@@ -61,15 +61,13 @@ pub async fn download(torrent: Torrent) -> Vec<u8> {
     buf
 }
 
+#[instrument(skip(client, tx, queue))]
 async fn process(peer: &Peer, client: Client<TcpStream>, tx: Sender<Piece>, queue: SharedQueue) {
     let mut worker = Worker::new(client, tx, queue);
     match worker.download().await {
-        Err(e) => warn!(
-            "Encountered error during download from {}:{}, got error: {}",
-            peer.ip, peer.port, e
-        ),
+        Err(e) => warn!("Encountered error during download: {}", e),
         Ok(_) => {
-            info!("Successful download from {}:{}", peer.ip, peer.port)
+            info!("Successful download")
         }
     };
 }
