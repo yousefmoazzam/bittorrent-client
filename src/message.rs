@@ -63,6 +63,49 @@ pub enum Message {
     },
 }
 
+impl std::fmt::Display for Message {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::KeepAlive => write!(f, "KeepAlive"),
+            Self::Choke => write!(f, "Choke"),
+            Self::Unchoke => write!(f, "Unchoke"),
+            Self::Interested => write!(f, "Interested"),
+            Self::NotInterested => write!(f, "NotInterested"),
+            Self::Have(index) => write!(f, "Have({})", index),
+            Self::Bitfield(Bitfield { data }) => write!(f, "Bitfield(len={})", data.len()),
+            Self::Request {
+                index,
+                begin,
+                length,
+            } => write!(
+                f,
+                "Request(index={}, begin={}, len={})",
+                index, begin, length
+            ),
+            Self::Piece {
+                index,
+                begin,
+                block,
+            } => write!(
+                f,
+                "Piece(index={}, begin={}, len={})",
+                index,
+                begin,
+                block.len()
+            ),
+            Self::Cancel {
+                index,
+                begin,
+                length,
+            } => write!(
+                f,
+                "Cancel(index={}, begin={}, len={})",
+                index, begin, length
+            ),
+        }
+    }
+}
+
 impl Message {
     /// Deserialise raw bytes from socket to [`Message`]
     pub async fn deserialise<T>(socket: &mut T) -> std::io::Result<Message>
