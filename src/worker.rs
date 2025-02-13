@@ -1,6 +1,6 @@
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::mpsc::Sender;
-use tracing::warn;
+use tracing::{debug, warn};
 
 use crate::client::Client;
 use crate::message::Message;
@@ -84,6 +84,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Worker<T> {
             match self.client.receive().await {
                 Err(e) => return Err(e),
                 Ok(message) => {
+                    debug!("Received message: {}", message);
                     if let Message::Piece { begin, block, .. } = message {
                         buf[begin as usize..begin as usize + block.len()].copy_from_slice(&block);
                         bytes_downloaded += u64::try_from(block.len()).unwrap();
