@@ -1,5 +1,6 @@
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::mpsc::Sender;
+use tracing::warn;
 
 use crate::client::Client;
 use crate::message::Message;
@@ -65,14 +66,17 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Worker<T> {
                         DEFAULT_BLOCK_SIZE
                     };
 
-                    self.client
+                    if let Err(e) = self
+                        .client
                         .send(Message::Request {
                             index: work.index,
                             begin: block_index,
                             length: block_size,
                         })
                         .await
-                        .unwrap();
+                    {
+                        warn!("Received error when sending request message: {}", e)
+                    };
                     block_index += block_size;
                 }
             }
