@@ -342,12 +342,12 @@ mod tests {
             Message::Request {
                 index: 0,
                 begin: 0,
-                length: DEFAULT_BLOCK_SIZE as u32,
+                length: DEFAULT_BLOCK_SIZE,
             },
             Message::Request {
                 index: 0,
-                begin: DEFAULT_BLOCK_SIZE as u32,
-                length: SECOND_BLOCK_LEN as u32,
+                begin: DEFAULT_BLOCK_SIZE,
+                length: SECOND_BLOCK_LEN,
             },
         ];
         let piece_zero_responses = [
@@ -358,7 +358,7 @@ mod tests {
             },
             Message::Piece {
                 index: 0,
-                begin: DEFAULT_BLOCK_SIZE as u32,
+                begin: DEFAULT_BLOCK_SIZE,
                 block: original_data
                     [DEFAULT_BLOCK_SIZE as usize..(DEFAULT_BLOCK_SIZE + SECOND_BLOCK_LEN) as usize]
                     .to_vec(),
@@ -368,12 +368,12 @@ mod tests {
             Message::Request {
                 index: 1,
                 begin: 0,
-                length: DEFAULT_BLOCK_SIZE as u32,
+                length: DEFAULT_BLOCK_SIZE,
             },
             Message::Request {
                 index: 1,
-                begin: DEFAULT_BLOCK_SIZE as u32,
-                length: SECOND_BLOCK_LEN as u32,
+                begin: DEFAULT_BLOCK_SIZE,
+                length: SECOND_BLOCK_LEN,
             },
         ];
         let piece_one_responses = [
@@ -386,7 +386,7 @@ mod tests {
             },
             Message::Piece {
                 index: 1,
-                begin: DEFAULT_BLOCK_SIZE as u32,
+                begin: DEFAULT_BLOCK_SIZE,
                 block: original_data[(2 * DEFAULT_BLOCK_SIZE + SECOND_BLOCK_LEN) as usize..]
                     .to_vec(),
             },
