@@ -7,7 +7,7 @@ use crate::message::Message;
 use crate::piece::Piece;
 use crate::work::{SharedQueue, Work};
 
-const DEFAULT_BLOCK_SIZE: u64 = 2u64.pow(14);
+const DEFAULT_BLOCK_SIZE: u32 = 2u32.pow(14);
 
 /// Piece download worker
 pub struct Worker<T: AsyncRead + AsyncWrite + Unpin> {
@@ -96,7 +96,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Worker<T> {
                     debug!("Received message: {}", message);
                     if let Message::Piece { begin, block, .. } = message {
                         buf[begin as usize..begin as usize + block.len()].copy_from_slice(&block);
-                        bytes_downloaded += u64::try_from(block.len()).unwrap();
+                        bytes_downloaded += u32::try_from(block.len()).unwrap();
                     }
                 }
             }
@@ -175,10 +175,10 @@ mod tests {
         }
 
         // Setup work queue
-        let work = (0..NO_OF_PIECES as u64)
+        let work = (0..NO_OF_PIECES as u32)
             .map(|index| Work {
                 index,
-                length: PIECE_LEN as u64,
+                length: PIECE_LEN as u32,
                 hash: piece_hashes[index as usize].to_vec(),
             })
             .collect::<Vec<_>>();
@@ -297,7 +297,7 @@ mod tests {
     {
         // Setup file data
         const NO_OF_PIECES: u8 = 2;
-        const PIECE_LEN: u64 = 18_000;
+        const PIECE_LEN: u32 = 18_000;
         let piece_template = [5; PIECE_LEN as usize];
         let mut original_data = [0; NO_OF_PIECES as usize * PIECE_LEN as usize];
         let mut count = 0;
@@ -322,7 +322,7 @@ mod tests {
         }
 
         // Setup work queue
-        let work = (0..NO_OF_PIECES as u64)
+        let work = (0..NO_OF_PIECES as u32)
             .map(|index| Work {
                 index,
                 length: PIECE_LEN,
@@ -346,7 +346,7 @@ mod tests {
 
         // Setup mock socket with expected block requests/responses (along with all other
         // preliminary interactions, such as a sucessful handshake)
-        const SECOND_BLOCK_LEN: u64 = PIECE_LEN - DEFAULT_BLOCK_SIZE;
+        const SECOND_BLOCK_LEN: u32 = PIECE_LEN - DEFAULT_BLOCK_SIZE;
         let piece_zero_requests = [
             Message::Request {
                 index: 0,
@@ -470,10 +470,10 @@ mod tests {
         }
 
         // Setup work queue
-        let work = (0..NO_OF_PIECES as u64)
+        let work = (0..NO_OF_PIECES as u32)
             .map(|index| Work {
                 index,
-                length: PIECE_LEN as u64,
+                length: PIECE_LEN as u32,
                 hash: piece_hashes[index as usize].to_vec(),
             })
             .collect::<Vec<_>>();
@@ -623,10 +623,10 @@ mod tests {
         }
 
         // Setup work queue
-        let work = (0..NO_OF_PIECES as u64)
+        let work = (0..NO_OF_PIECES as u32)
             .map(|index| Work {
                 index,
-                length: PIECE_LEN as u64,
+                length: PIECE_LEN as u32,
                 hash: piece_hashes[index as usize].to_vec(),
             })
             .collect::<Vec<_>>();
@@ -871,10 +871,10 @@ mod tests {
         }
 
         // Setup work queue
-        let work = (0..NO_OF_PIECES as u64)
+        let work = (0..NO_OF_PIECES as u32)
             .map(|index| Work {
                 index,
-                length: PIECE_LEN as u64,
+                length: PIECE_LEN as u32,
                 hash: piece_hashes[index as usize].to_vec(),
             })
             .collect::<Vec<_>>();
@@ -1001,7 +1001,7 @@ mod tests {
         // Setup work queue
         let work = vec![Work {
             index: 0,
-            length: PIECE_LEN as u64,
+            length: PIECE_LEN as u32,
             hash: piece_hash.to_vec(),
         }];
         let queue = SharedQueue::new(work);

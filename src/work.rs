@@ -6,9 +6,9 @@ use std::{
 /// Piece-download work
 pub struct Work {
     /// Index of piece
-    pub index: u64,
+    pub index: u32,
     /// Length of piece
-    pub length: u64,
+    pub length: u32,
     /// SHA1 hash of piece
     pub hash: Vec<u8>,
 }
@@ -49,7 +49,7 @@ mod tests {
 
     #[tokio::test]
     async fn tasks_can_get_work_from_queue() {
-        let indices = (0..16).collect::<Vec<u64>>();
+        let indices = (0..16).collect::<Vec<u32>>();
 
         let work = indices
             .iter()
@@ -91,8 +91,8 @@ mod tests {
 
     #[tokio::test]
     async fn tasks_can_put_work_onto_queue() {
-        let indices = (0..16).collect::<Vec<u64>>();
-        let extra_indices = (16..24).collect::<Vec<u64>>();
+        let indices = (0..16).collect::<Vec<u32>>();
+        let extra_indices = (16..24).collect::<Vec<u32>>();
         let mut expected_indices = indices.clone();
         expected_indices.append(&mut extra_indices.clone());
 
