@@ -40,7 +40,7 @@ pub enum Message {
     Interested,
     NotInterested,
     /// Index of piece the downloader has completed and checked the hash of
-    Have(u64),
+    Have(u32),
     /// Describes which pieces (by index) the downloader has sent
     Bitfield(Bitfield),
     /// Request a subset of a piece (a block)
@@ -137,9 +137,7 @@ impl Message {
         reader.read_exact(&mut bytes[..]).await?;
         match id {
             0x04 => {
-                let index = u64::from_be_bytes([
-                    bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
-                ]);
+                let index = u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
                 Ok(Message::Have(index))
             }
             0x05 => Ok(Message::Bitfield(Bitfield::new(bytes.to_vec()))),
@@ -217,10 +215,10 @@ impl Message {
                 buf
             }
             Message::Have(index) => {
-                let len = 1 + 8;
+                let len = 1 + 4;
                 let mut buf = u32::to_be_bytes(len).to_vec();
                 buf.push(4);
-                buf.append(&mut u64::to_be_bytes(index).to_vec());
+                buf.append(&mut u32::to_be_bytes(index).to_vec());
                 buf
             }
             Message::Bitfield(mut bitfield) => {
@@ -337,12 +335,12 @@ mod tests {
 
     #[tokio::test]
     async fn parse_have_message() {
-        let len: u32 = 9;
+        let len: u32 = 5;
         let id = 0x04;
-        let index: u64 = 100;
+        let index: u32 = 100;
         let mut buf = u32::to_be_bytes(len).to_vec();
         buf.push(id);
-        buf.append(&mut u64::to_be_bytes(index).to_vec());
+        buf.append(&mut u32::to_be_bytes(index).to_vec());
         let expected_message = Message::Have(index);
         let mut mock_socket = tokio_test::io::Builder::new().read(&buf[..]).build();
         let res = Message::deserialise(&mut mock_socket).await;
@@ -507,11 +505,11 @@ mod tests {
     fn serialise_have_message() {
         let index = 10;
         let message = Message::Have(index);
-        let len = 1 + 8;
+        let len = 1 + 4;
         let id = 4;
         let mut expected_buf = u32::to_be_bytes(len).to_vec();
         expected_buf.push(id);
-        expected_buf.append(&mut u64::to_be_bytes(index).to_vec());
+        expected_buf.append(&mut u32::to_be_bytes(index).to_vec());
         assert_eq!(message.serialise(), expected_buf);
     }
 

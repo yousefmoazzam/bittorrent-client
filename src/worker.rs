@@ -39,7 +39,10 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Worker<T> {
             let index = work.index;
             let buf = self.download_piece(&work).await?;
             if self.check_integrity(&work, &buf) {
-                self.client.send(Message::Have(index)).await.unwrap();
+                self.client
+                    .send(Message::Have(index.try_into().unwrap()))
+                    .await
+                    .unwrap();
                 self.piece_sender.send(Piece { index, buf }).await.unwrap();
             } else {
                 self.work_queue.enqueue(work);
