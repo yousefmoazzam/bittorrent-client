@@ -43,7 +43,13 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Worker<T> {
                     .send(Message::Have(index.try_into().unwrap()))
                     .await
                     .unwrap();
-                self.piece_sender.send(Piece { index, buf }).await.unwrap();
+                self.piece_sender
+                    .send(Piece {
+                        index: index.try_into().unwrap(),
+                        buf,
+                    })
+                    .await
+                    .unwrap();
             } else {
                 self.work_queue.enqueue(work);
             }

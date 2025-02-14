@@ -4,7 +4,7 @@ use tokio::sync::mpsc::Receiver;
 #[derive(Debug)]
 pub struct Piece {
     /// Index of piece within file
-    pub index: u64,
+    pub index: u32,
     /// Piece data
     pub buf: Vec<u8>,
 }
