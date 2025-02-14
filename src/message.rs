@@ -51,8 +51,8 @@ pub enum Message {
     },
     /// Send a subset of a piece (a block)
     Piece {
-        index: u64,
-        begin: u64,
+        index: u32,
+        begin: u32,
         block: Vec<u8>,
     },
     /// Cancel a request for a block
@@ -170,14 +170,9 @@ impl Message {
                 })
             }
             0x07 => {
-                let index = u64::from_be_bytes([
-                    bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
-                ]);
-                let begin = u64::from_be_bytes([
-                    bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14],
-                    bytes[15],
-                ]);
-                let block = bytes[16..].to_vec();
+                let index = u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+                let begin = u32::from_be_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]);
+                let block = bytes[8..].to_vec();
                 Ok(Message::Piece {
                     index,
                     begin,
@@ -247,11 +242,11 @@ impl Message {
                 begin,
                 mut block,
             } => {
-                let len = 1 + 8 + 8 + block.len() as u32;
+                let len = 1 + 4 + 4 + block.len() as u32;
                 let mut buf = u32::to_be_bytes(len).to_vec();
                 buf.push(7);
-                buf.append(&mut u64::to_be_bytes(index).to_vec());
-                buf.append(&mut u64::to_be_bytes(begin).to_vec());
+                buf.append(&mut u32::to_be_bytes(index).to_vec());
+                buf.append(&mut u32::to_be_bytes(begin).to_vec());
                 buf.append(&mut block);
                 buf
             }
@@ -388,14 +383,14 @@ mod tests {
     #[tokio::test]
     async fn parse_piece_message() {
         let id = 0x07;
-        let index: u64 = 30;
-        let begin: u64 = 100;
+        let index: u32 = 30;
+        let begin: u32 = 100;
         let block = (0x00..0xFF).collect::<Vec<u8>>();
-        let len: u32 = 1 + 8 + 8 + block.len() as u32;
+        let len: u32 = 1 + 4 + 4 + block.len() as u32;
         let mut buf = u32::to_be_bytes(len).to_vec();
         buf.push(id);
-        buf.append(&mut u64::to_be_bytes(index).to_vec());
-        buf.append(&mut u64::to_be_bytes(begin).to_vec());
+        buf.append(&mut u32::to_be_bytes(index).to_vec());
+        buf.append(&mut u32::to_be_bytes(begin).to_vec());
         buf.append(&mut block.clone());
         let expected_message = Message::Piece {
             index,
@@ -553,11 +548,11 @@ mod tests {
         let index = 30;
         let begin = 100;
         let block = (0x00..0xFF).collect::<Vec<u8>>();
-        let len = 1 + 8 + 8 + block.len() as u32;
+        let len = 1 + 4 + 4 + block.len() as u32;
         let mut expected_buf = u32::to_be_bytes(len).to_vec();
         expected_buf.push(id);
-        expected_buf.append(&mut u64::to_be_bytes(index).to_vec());
-        expected_buf.append(&mut u64::to_be_bytes(begin).to_vec());
+        expected_buf.append(&mut u32::to_be_bytes(index).to_vec());
+        expected_buf.append(&mut u32::to_be_bytes(begin).to_vec());
         expected_buf.append(&mut block.clone());
         let message = Message::Piece {
             index,

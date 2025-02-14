@@ -164,7 +164,7 @@ mod tests {
             },
             Message::Piece {
                 index: 0,
-                begin: PIECE_LEN as u64 / 2,
+                begin: PIECE_LEN as u32 / 2,
                 block: original_data[PIECE_LEN as usize / 2..PIECE_LEN as usize].to_vec(),
             },
         ];
@@ -178,7 +178,7 @@ mod tests {
             },
             Message::Piece {
                 index: 1,
-                begin: PIECE_LEN as u64 / 2,
+                begin: PIECE_LEN as u32 / 2,
                 block: original_data
                     [PIECE_LEN as usize + PIECE_LEN as usize / 2..PIECE_LEN as usize * 2]
                     .to_vec(),
