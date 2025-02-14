@@ -72,9 +72,9 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Worker<T> {
                     if let Err(e) = self
                         .client
                         .send(Message::Request {
-                            index: work.index,
-                            begin: block_index,
-                            length: block_size,
+                            index: work.index.try_into().unwrap(),
+                            begin: block_index.try_into().unwrap(),
+                            length: block_size.try_into().unwrap(),
                         })
                         .await
                     {
@@ -197,12 +197,12 @@ mod tests {
             Message::Request {
                 index: 0,
                 begin: 0,
-                length: PIECE_LEN as u64 / 2,
+                length: PIECE_LEN as u32 / 2,
             },
             Message::Request {
                 index: 0,
-                begin: PIECE_LEN as u64 / 2,
-                length: PIECE_LEN as u64 / 2,
+                begin: PIECE_LEN as u32 / 2,
+                length: PIECE_LEN as u32 / 2,
             },
         ];
         let piece_zero_responses = [
@@ -221,12 +221,12 @@ mod tests {
             Message::Request {
                 index: 1,
                 begin: 0,
-                length: PIECE_LEN as u64 / 2,
+                length: PIECE_LEN as u32 / 2,
             },
             Message::Request {
                 index: 1,
-                begin: PIECE_LEN as u64 / 2,
-                length: PIECE_LEN as u64 / 2,
+                begin: PIECE_LEN as u32 / 2,
+                length: PIECE_LEN as u32 / 2,
             },
         ];
         let piece_one_responses = [
@@ -345,12 +345,12 @@ mod tests {
             Message::Request {
                 index: 0,
                 begin: 0,
-                length: DEFAULT_BLOCK_SIZE,
+                length: DEFAULT_BLOCK_SIZE as u32,
             },
             Message::Request {
                 index: 0,
-                begin: DEFAULT_BLOCK_SIZE,
-                length: SECOND_BLOCK_LEN,
+                begin: DEFAULT_BLOCK_SIZE as u32,
+                length: SECOND_BLOCK_LEN as u32,
             },
         ];
         let piece_zero_responses = [
@@ -371,12 +371,12 @@ mod tests {
             Message::Request {
                 index: 1,
                 begin: 0,
-                length: DEFAULT_BLOCK_SIZE,
+                length: DEFAULT_BLOCK_SIZE as u32,
             },
             Message::Request {
                 index: 1,
-                begin: DEFAULT_BLOCK_SIZE,
-                length: SECOND_BLOCK_LEN,
+                begin: DEFAULT_BLOCK_SIZE as u32,
+                length: SECOND_BLOCK_LEN as u32,
             },
         ];
         let piece_one_responses = [
@@ -493,12 +493,12 @@ mod tests {
             Message::Request {
                 index: 0,
                 begin: 0,
-                length: PIECE_LEN as u64 / 2,
+                length: PIECE_LEN as u32 / 2,
             },
             Message::Request {
                 index: 0,
-                begin: PIECE_LEN as u64 / 2,
-                length: PIECE_LEN as u64 / 2,
+                begin: PIECE_LEN as u32 / 2,
+                length: PIECE_LEN as u32 / 2,
             },
         ];
         let piece_zero_responses_incorrect_block_0 = [
@@ -529,12 +529,12 @@ mod tests {
             Message::Request {
                 index: 1,
                 begin: 0,
-                length: PIECE_LEN as u64 / 2,
+                length: PIECE_LEN as u32 / 2,
             },
             Message::Request {
                 index: 1,
-                begin: PIECE_LEN as u64 / 2,
-                length: PIECE_LEN as u64 / 2,
+                begin: PIECE_LEN as u32 / 2,
+                length: PIECE_LEN as u32 / 2,
             },
         ];
         let piece_one_responses = [
@@ -658,12 +658,12 @@ mod tests {
             Message::Request {
                 index: 0,
                 begin: 0,
-                length: PIECE_LEN as u64 / 2,
+                length: PIECE_LEN as u32 / 2,
             },
             Message::Request {
                 index: 0,
-                begin: PIECE_LEN as u64 / 2,
-                length: PIECE_LEN as u64 / 2,
+                begin: PIECE_LEN as u32 / 2,
+                length: PIECE_LEN as u32 / 2,
             },
         ];
         let piece_zero_responses = [
@@ -682,12 +682,12 @@ mod tests {
             Message::Request {
                 index: 1,
                 begin: 0,
-                length: PIECE_LEN as u64 / 2,
+                length: PIECE_LEN as u32 / 2,
             },
             Message::Request {
                 index: 1,
-                begin: PIECE_LEN as u64 / 2,
-                length: PIECE_LEN as u64 / 2,
+                begin: PIECE_LEN as u32 / 2,
+                length: PIECE_LEN as u32 / 2,
             },
         ];
         let piece_one_responses = [
@@ -710,12 +710,12 @@ mod tests {
             Message::Request {
                 index: 2,
                 begin: 0,
-                length: PIECE_LEN as u64 / 2,
+                length: PIECE_LEN as u32 / 2,
             },
             Message::Request {
                 index: 2,
-                begin: PIECE_LEN as u64 / 2,
-                length: PIECE_LEN as u64 / 2,
+                begin: PIECE_LEN as u32 / 2,
+                length: PIECE_LEN as u32 / 2,
             },
         ];
         let piece_two_responses = [
@@ -738,12 +738,12 @@ mod tests {
             Message::Request {
                 index: 3,
                 begin: 0,
-                length: PIECE_LEN as u64 / 2,
+                length: PIECE_LEN as u32 / 2,
             },
             Message::Request {
                 index: 3,
-                begin: PIECE_LEN as u64 / 2,
-                length: PIECE_LEN as u64 / 2,
+                begin: PIECE_LEN as u32 / 2,
+                length: PIECE_LEN as u32 / 2,
             },
         ];
         let piece_three_responses = [
@@ -893,12 +893,12 @@ mod tests {
             Message::Request {
                 index: 0,
                 begin: 0,
-                length: PIECE_LEN as u64 / 2,
+                length: PIECE_LEN as u32 / 2,
             },
             Message::Request {
                 index: 0,
-                begin: PIECE_LEN as u64 / 2,
-                length: PIECE_LEN as u64 / 2,
+                begin: PIECE_LEN as u32 / 2,
+                length: PIECE_LEN as u32 / 2,
             },
         ];
         let piece_zero_responses = [
@@ -917,12 +917,12 @@ mod tests {
             Message::Request {
                 index: 1,
                 begin: 0,
-                length: PIECE_LEN as u64 / 2,
+                length: PIECE_LEN as u32 / 2,
             },
             Message::Request {
                 index: 1,
-                begin: PIECE_LEN as u64 / 2,
-                length: PIECE_LEN as u64 / 2,
+                begin: PIECE_LEN as u32 / 2,
+                length: PIECE_LEN as u32 / 2,
             },
         ];
         let piece_one_responses = [

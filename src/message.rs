@@ -45,9 +45,9 @@ pub enum Message {
     Bitfield(Bitfield),
     /// Request a subset of a piece (a block)
     Request {
-        index: u64,
-        begin: u64,
-        length: u64,
+        index: u32,
+        begin: u32,
+        length: u32,
     },
     /// Send a subset of a piece (a block)
     Piece {
@@ -141,7 +141,17 @@ impl Message {
                 Ok(Message::Have(index))
             }
             0x05 => Ok(Message::Bitfield(Bitfield::new(bytes.to_vec()))),
-            0x06 | 0x08 => {
+            0x06 => {
+                let index = u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+                let begin = u32::from_be_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]);
+                let length = u32::from_be_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
+                Ok(Message::Request {
+                    index,
+                    begin,
+                    length,
+                })
+            }
+            0x08 => {
                 let index = u64::from_be_bytes([
                     bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
                 ]);
@@ -153,20 +163,11 @@ impl Message {
                     bytes[16], bytes[17], bytes[18], bytes[19], bytes[20], bytes[21], bytes[22],
                     bytes[23],
                 ]);
-
-                if id == 0x06 {
-                    Ok(Message::Request {
-                        index,
-                        begin,
-                        length,
-                    })
-                } else {
-                    Ok(Message::Cancel {
-                        index,
-                        begin,
-                        length,
-                    })
-                }
+                Ok(Message::Cancel {
+                    index,
+                    begin,
+                    length,
+                })
             }
             0x07 => {
                 let index = u64::from_be_bytes([
@@ -233,12 +234,12 @@ impl Message {
                 begin,
                 length,
             } => {
-                let len = 1 + (3 * 8);
+                let len = 1 + (3 * 4);
                 let mut buf = u32::to_be_bytes(len).to_vec();
                 buf.push(6);
-                buf.append(&mut u64::to_be_bytes(index).to_vec());
-                buf.append(&mut u64::to_be_bytes(begin).to_vec());
-                buf.append(&mut u64::to_be_bytes(length).to_vec());
+                buf.append(&mut u32::to_be_bytes(index).to_vec());
+                buf.append(&mut u32::to_be_bytes(begin).to_vec());
+                buf.append(&mut u32::to_be_bytes(length).to_vec());
                 buf
             }
             Message::Piece {
@@ -364,16 +365,16 @@ mod tests {
 
     #[tokio::test]
     async fn parse_request_message() {
-        let len: u32 = 25;
+        let len: u32 = 13;
         let id = 0x06;
-        let index: u64 = 30;
-        let begin: u64 = 100;
-        let length: u64 = 200;
+        let index: u32 = 30;
+        let begin: u32 = 100;
+        let length: u32 = 200;
         let mut buf = u32::to_be_bytes(len).to_vec();
         buf.push(id);
-        buf.append(&mut u64::to_be_bytes(index).to_vec());
-        buf.append(&mut u64::to_be_bytes(begin).to_vec());
-        buf.append(&mut u64::to_be_bytes(length).to_vec());
+        buf.append(&mut u32::to_be_bytes(index).to_vec());
+        buf.append(&mut u32::to_be_bytes(begin).to_vec());
+        buf.append(&mut u32::to_be_bytes(length).to_vec());
         let expected_message = Message::Request {
             index,
             begin,
@@ -532,12 +533,12 @@ mod tests {
         let index = 2;
         let begin = 0;
         let block_len = 64;
-        let len = 1 + (3 * 8);
+        let len = 1 + (3 * 4);
         let mut expected_buf = u32::to_be_bytes(len).to_vec();
         expected_buf.push(id);
-        expected_buf.append(&mut u64::to_be_bytes(index).to_vec());
-        expected_buf.append(&mut u64::to_be_bytes(begin).to_vec());
-        expected_buf.append(&mut u64::to_be_bytes(block_len).to_vec());
+        expected_buf.append(&mut u32::to_be_bytes(index).to_vec());
+        expected_buf.append(&mut u32::to_be_bytes(begin).to_vec());
+        expected_buf.append(&mut u32::to_be_bytes(block_len).to_vec());
         let message = Message::Request {
             index,
             begin,

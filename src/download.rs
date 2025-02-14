@@ -192,7 +192,7 @@ mod tests {
             let mut handshake_buf = [0; HANDSHAKE_BYTES_LEN];
             let mut read_unchoke_buf = [0; 5];
             let mut read_interested_buf = [0; 5];
-            let mut piece_request_buf = [0; 29];
+            let mut piece_request_buf = [0; 17];
             let (mut socket, _) = listener.accept().unwrap();
             socket.read_exact(&mut handshake_buf).unwrap();
             assert_eq!(handshake_buf, &initial_handshake.serialise()[..]);
