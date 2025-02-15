@@ -4,7 +4,6 @@ use crate::torrent::Torrent;
 use crate::tracker::Peer;
 use crate::work::{SharedQueue, Work};
 use crate::worker::Worker;
-use tokio::net::TcpStream;
 use tokio::sync::mpsc::Sender;
 use tracing::{info, instrument, warn};
 
@@ -29,30 +28,9 @@ pub async fn download(torrent: Torrent) -> Vec<u8> {
         let info_hash = torrent.info_hash.clone();
         let queue = queue.clone();
         let tx = tx.clone();
-        let addr = format!("{}:{}", peer.ip, peer.port);
-        match tokio::net::TcpStream::connect(addr).await {
-            Err(e) => {
-                warn!(
-                    "Unable to establish TCP connection with {}:{}, got error: {}",
-                    peer.ip, peer.port, e
-                );
-            }
-            Ok(socket) => {
-                info!("Established TCP connection with {}:{}", peer.ip, peer.port);
-                match Client::new(socket, info_hash).await {
-                    Err(e) => warn!(
-                        "Unable to establish peer protocol with {}:{}, got error: {}",
-                        peer.ip, peer.port, e
-                    ),
-                    Ok(client) => {
-                        info!("Established peer protocol with {}:{}", peer.ip, peer.port);
-                        tokio::spawn(async move {
-                            process(&peer, client, tx, queue).await;
-                        });
-                    }
-                };
-            }
-        };
+        tokio::spawn(async move {
+            process(info_hash, &peer, tx, queue).await;
+        });
     }
 
     drop(tx);
@@ -61,13 +39,30 @@ pub async fn download(torrent: Torrent) -> Vec<u8> {
     buf
 }
 
-#[instrument(skip(client, tx, queue))]
-async fn process(peer: &Peer, client: Client<TcpStream>, tx: Sender<Piece>, queue: SharedQueue) {
-    let mut worker = Worker::new(client, tx, queue);
-    match worker.download().await {
-        Err(e) => warn!("Encountered error during download: {}", e),
-        Ok(_) => {
-            info!("Successful download")
+#[instrument(skip(info_hash, tx, queue))]
+async fn process(info_hash: Vec<u8>, peer: &Peer, tx: Sender<Piece>, queue: SharedQueue) {
+    let addr = format!("{}:{}", peer.ip, peer.port);
+    match tokio::net::TcpStream::connect(addr).await {
+        Err(e) => {
+            warn!("Unable to establish TCP connection: {}", e);
+        }
+        Ok(socket) => {
+            info!("Established TCP connection");
+            match Client::new(socket, info_hash).await {
+                Err(e) => warn!("Unable to establish peer protocol: {}", e),
+                Ok(client) => {
+                    info!("Established peer protocol");
+                    tokio::spawn(async move {
+                        let mut worker = Worker::new(client, tx, queue);
+                        match worker.download().await {
+                            Err(e) => warn!("Encountered error during download: {}", e),
+                            Ok(_) => {
+                                info!("Successful download")
+                            }
+                        };
+                    });
+                }
+            };
         }
     };
 }
