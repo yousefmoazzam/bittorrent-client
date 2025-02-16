@@ -8,6 +8,7 @@ use crate::piece::Piece;
 use crate::work::{SharedQueue, Work};
 
 const DEFAULT_BLOCK_SIZE: u32 = 2u32.pow(14);
+const MAX_IN_FLIGHT_REQUESTS: u8 = 5;
 
 /// Piece download worker
 pub struct Worker<T: AsyncRead + AsyncWrite + Unpin> {
@@ -54,10 +55,11 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Worker<T> {
         let mut buf = vec![0; work.length as usize];
         let mut bytes_downloaded = 0;
         let mut block_index = 0;
+        let mut in_flight_requests = 0;
 
         while bytes_downloaded < work.length {
             if !self.client.choked {
-                while block_index < work.length {
+                while in_flight_requests < MAX_IN_FLIGHT_REQUESTS && block_index < work.length {
                     let block_size = if DEFAULT_BLOCK_SIZE >= work.length {
                         work.length / 2
                     } else if block_index + DEFAULT_BLOCK_SIZE >= work.length {
@@ -78,6 +80,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Worker<T> {
                         warn!("Received error when sending request message: {}", e)
                     } else {
                         block_index += block_size;
+                        in_flight_requests += 1;
                     };
                 }
             }
@@ -89,6 +92,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Worker<T> {
                     if let Message::Piece { begin, block, .. } = message {
                         buf[begin as usize..begin as usize + block.len()].copy_from_slice(&block);
                         bytes_downloaded += u32::try_from(block.len()).unwrap();
+                        in_flight_requests -= 1;
                     }
                 }
             }
