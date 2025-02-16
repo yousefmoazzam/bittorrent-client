@@ -113,12 +113,23 @@ impl Message {
         T: AsyncRead + Unpin,
     {
         let mut reader = BufReader::new(socket);
-        let len = reader.read_u32().await?;
+        let len = reader.read_u32().await.map_err(|err| match err.kind() {
+            std::io::ErrorKind::UnexpectedEof => {
+                std::io::Error::other("Unexpected EOF when reading message length")
+            }
+            _ => err,
+        })?;
         if len == 0 {
             return Ok(Message::KeepAlive);
         }
 
-        let id = reader.read_u8().await?;
+        let id = reader.read_u8().await.map_err(|err| match err.kind() {
+            std::io::ErrorKind::UnexpectedEof => std::io::Error::other(format!(
+                "Unexpected EOF when reading message ID; len={}",
+                len
+            )),
+            _ => err,
+        })?;
 
         if len == 1 {
             return match id {
@@ -134,7 +145,16 @@ impl Message {
         }
 
         let mut bytes = vec![0; len as usize - 1];
-        reader.read_exact(&mut bytes[..]).await?;
+        reader
+            .read_exact(&mut bytes[..])
+            .await
+            .map_err(|err| match err.kind() {
+                std::io::ErrorKind::UnexpectedEof => std::io::Error::other(format!(
+                    "Unexpected EOF when reading message payload; len={}, id={}",
+                    len, id
+                )),
+                _ => err,
+            })?;
         match id {
             0x04 => {
                 let index = u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);

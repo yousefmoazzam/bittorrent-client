@@ -1035,6 +1035,8 @@ mod tests {
             .await
             .unwrap();
         crate::piece::receiver(&mut receiver_buf, PIECE_LEN as usize, rx).await;
-        assert!(ret.is_err_and(|err| matches!(err.kind(), std::io::ErrorKind::UnexpectedEof)));
+        assert!(
+            ret.is_err_and(|err| err.to_string() == "Unexpected EOF when reading message length")
+        );
     }
 }
