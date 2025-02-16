@@ -76,8 +76,9 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Worker<T> {
                         .await
                     {
                         warn!("Received error when sending request message: {}", e)
+                    } else {
+                        block_index += block_size;
                     };
-                    block_index += block_size;
                 }
             }
 
