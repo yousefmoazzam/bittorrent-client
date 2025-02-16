@@ -5,7 +5,7 @@ use crate::tracker::Peer;
 use crate::work::{SharedQueue, Work};
 use crate::worker::Worker;
 use tokio::sync::mpsc::Sender;
-use tracing::{info, instrument, warn};
+use tracing::{info, instrument, warn, Instrument};
 
 /// Download file
 pub async fn download(torrent: Torrent) -> Vec<u8> {
@@ -52,15 +52,18 @@ async fn process(info_hash: Vec<u8>, peer: &Peer, tx: Sender<Piece>, queue: Shar
                 Err(e) => warn!("Unable to establish peer protocol: {}", e),
                 Ok(client) => {
                     info!("Established peer protocol");
-                    tokio::spawn(async move {
-                        let mut worker = Worker::new(client, tx, queue);
-                        match worker.download().await {
-                            Err(e) => warn!("Encountered error during download: {}", e),
-                            Ok(_) => {
-                                info!("Successful download")
-                            }
-                        };
-                    });
+                    tokio::spawn(
+                        async move {
+                            let mut worker = Worker::new(client, tx, queue);
+                            match worker.download().await {
+                                Err(e) => warn!("Encountered error during download: {}", e),
+                                Ok(_) => {
+                                    info!("Successful download")
+                                }
+                            };
+                        }
+                        .instrument(tracing::Span::current()),
+                    );
                 }
             };
         }
