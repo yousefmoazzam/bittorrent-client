@@ -1,4 +1,4 @@
-use tokio::io::{AsyncRead, AsyncReadExt, BufReader};
+use tokio::io::{AsyncRead, AsyncReadExt};
 
 const BITS_IN_BYTE: usize = 8;
 
@@ -112,8 +112,7 @@ impl Message {
     where
         T: AsyncRead + Unpin,
     {
-        let mut reader = BufReader::new(socket);
-        let len = reader.read_u32().await.map_err(|err| match err.kind() {
+        let len = socket.read_u32().await.map_err(|err| match err.kind() {
             std::io::ErrorKind::UnexpectedEof => {
                 std::io::Error::other("Unexpected EOF when reading message length")
             }
@@ -123,7 +122,7 @@ impl Message {
             return Ok(Message::KeepAlive);
         }
 
-        let id = reader.read_u8().await.map_err(|err| match err.kind() {
+        let id = socket.read_u8().await.map_err(|err| match err.kind() {
             std::io::ErrorKind::UnexpectedEof => std::io::Error::other(format!(
                 "Unexpected EOF when reading message ID; len={}",
                 len
@@ -145,7 +144,7 @@ impl Message {
         }
 
         let mut bytes = vec![0; len as usize - 1];
-        reader
+        socket
             .read_exact(&mut bytes[..])
             .await
             .map_err(|err| match err.kind() {
