@@ -48,7 +48,7 @@ async fn process(info_hash: Vec<u8>, peer: &Peer, tx: Sender<Piece>, queue: Shar
         }
         Ok(socket) => {
             info!("Established TCP connection");
-            match Client::new(socket, info_hash).await {
+            match Client::new(tokio::io::BufReader::new(socket), info_hash).await {
                 Err(e) => warn!("Unable to establish peer protocol: {}", e),
                 Ok(client) => {
                     info!("Established peer protocol");
