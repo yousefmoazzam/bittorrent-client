@@ -15,8 +15,8 @@ pub async fn download(torrent: Torrent) -> Vec<u8> {
         .pieces()
         .enumerate()
         .map(|(idx, hash)| Work {
-            index: u32::try_from(idx).unwrap(),
-            length: u32::try_from(torrent.metainfo.info.piece_length).unwrap(),
+            index: idx as u32,
+            length: torrent.metainfo.info.piece_length as u32,
             hash: hash.to_vec(),
         })
         .collect::<Vec<_>>();
