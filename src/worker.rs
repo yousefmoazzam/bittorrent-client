@@ -14,14 +14,21 @@ const MAX_IN_FLIGHT_REQUESTS: u8 = 5;
 pub struct Worker<T: AsyncRead + AsyncWrite + Unpin> {
     client: Client<T>,
     piece_sender: Sender<Piece>,
+    completion_receiver: tokio::sync::watch::Receiver<bool>,
     work_queue: SharedQueue,
 }
 
 impl<T: AsyncRead + AsyncWrite + Unpin> Worker<T> {
-    pub fn new(client: Client<T>, tx: Sender<Piece>, queue: SharedQueue) -> Worker<T> {
+    pub fn new(
+        client: Client<T>,
+        tx: Sender<Piece>,
+        rx: tokio::sync::watch::Receiver<bool>,
+        queue: SharedQueue,
+    ) -> Worker<T> {
         Worker {
             client,
             piece_sender: tx,
+            completion_receiver: rx,
             work_queue: queue,
         }
     }
@@ -31,20 +38,41 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Worker<T> {
         self.client.send(Message::Unchoke).await?;
         self.client.send(Message::Interested).await?;
 
-        while let Some(work) = self.work_queue.dequeue() {
-            if !self.client.bitfield.has_piece(work.index as usize) {
-                self.work_queue.enqueue(work);
-                tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-                continue;
+        let mut time_since_last_keep_alive = None;
+        loop {
+            while let Some(work) = self.work_queue.dequeue() {
+                if !self.client.bitfield.has_piece(work.index as usize) {
+                    self.work_queue.enqueue(work);
+                    tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+                    continue;
+                }
+                let index = work.index;
+                let buf = self.download_piece(&work).await?;
+                if self.check_integrity(&work, &buf) {
+                    self.client.send(Message::Have(index)).await.unwrap();
+                    self.piece_sender.send(Piece { index, buf }).await.unwrap();
+                } else {
+                    self.work_queue.enqueue(work);
+                }
             }
-            let index = work.index;
-            let buf = self.download_piece(&work).await?;
-            if self.check_integrity(&work, &buf) {
-                self.client.send(Message::Have(index)).await.unwrap();
-                self.piece_sender.send(Piece { index, buf }).await.unwrap();
-            } else {
-                self.work_queue.enqueue(work);
+
+            if *self.completion_receiver.borrow() {
+                break;
             }
+
+            match time_since_last_keep_alive {
+                None => {
+                    time_since_last_keep_alive = Some(tokio::time::Instant::now());
+                    self.client.send(Message::KeepAlive).await?;
+                }
+                Some(timestamp) => {
+                    if timestamp.elapsed().as_secs() > 120 {
+                        time_since_last_keep_alive = Some(tokio::time::Instant::now());
+                        self.client.send(Message::KeepAlive).await?;
+                    }
+                }
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
         }
 
         Ok(())
@@ -138,8 +166,13 @@ mod tests {
             .build();
         let client = Client::new(mock_socket, info_hash).await.unwrap();
         let (tx, _) = tokio::sync::mpsc::channel(1);
-        let mut worker = Worker::new(client, tx, SharedQueue::new(vec![]));
-        let _ = worker.download().await;
+        let (completion_tx, completion_rx) = tokio::sync::watch::channel(false);
+        let mut worker = Worker::new(client, tx, completion_rx, SharedQueue::new(vec![]));
+        let worker_handle = tokio::spawn(async move {
+            worker.download().await.unwrap();
+        });
+        completion_tx.send(true).unwrap();
+        worker_handle.await.unwrap();
     }
 
     #[tokio::test]
@@ -269,6 +302,7 @@ mod tests {
             builder = builder.read(&response.serialise());
         }
         builder.write(&Message::Have(1).serialise());
+        builder.write(&Message::KeepAlive.serialise());
         let socket = builder.build();
         let client = Client::new(socket, info_hash).await.unwrap();
 
@@ -276,14 +310,24 @@ mod tests {
         let mut receiver_buf = [0; NO_OF_PIECES as usize * PIECE_LEN as usize];
         let (tx, rx) = tokio::sync::mpsc::channel(NO_OF_PIECES as usize);
 
+        // Setup channel for notification when all pieces have been downloaded
+        let (completion_tx, completion_rx) = tokio::sync::watch::channel(false);
+
         // Spawn tokio task to run worker
-        let mut worker = Worker::new(client, tx, queue);
+        let mut worker = Worker::new(client, tx, completion_rx, queue);
         tokio::spawn(async move {
             worker.download().await.unwrap();
         });
 
         // Run piece-receiver
-        crate::piece::receiver(&mut receiver_buf, PIECE_LEN as usize, rx).await;
+        crate::piece::receiver(
+            &mut receiver_buf,
+            PIECE_LEN as usize,
+            rx,
+            NO_OF_PIECES as usize,
+            completion_tx,
+        )
+        .await;
 
         assert_eq!(receiver_buf, original_data);
     }
@@ -418,6 +462,7 @@ mod tests {
             builder = builder.read(&response.serialise());
         }
         builder.write(&Message::Have(1).serialise());
+        builder.write(&Message::KeepAlive.serialise());
         let socket = builder.build();
         let client = Client::new(socket, info_hash).await.unwrap();
 
@@ -425,14 +470,24 @@ mod tests {
         let mut receiver_buf = [0; NO_OF_PIECES as usize * PIECE_LEN as usize];
         let (tx, rx) = tokio::sync::mpsc::channel(NO_OF_PIECES as usize);
 
+        // Setup channel for notification when all pieces have been downloaded
+        let (completion_tx, completion_rx) = tokio::sync::watch::channel(false);
+
         // Spawn tokio task to run worker
-        let mut worker = Worker::new(client, tx, queue);
+        let mut worker = Worker::new(client, tx, completion_rx, queue);
         tokio::spawn(async move {
             worker.download().await.unwrap();
         });
 
         // Run piece-receiver
-        crate::piece::receiver(&mut receiver_buf, PIECE_LEN as usize, rx).await;
+        crate::piece::receiver(
+            &mut receiver_buf,
+            PIECE_LEN as usize,
+            rx,
+            NO_OF_PIECES as usize,
+            completion_tx,
+        )
+        .await;
 
         assert_eq!(receiver_buf, original_data);
     }
@@ -583,6 +638,7 @@ mod tests {
             builder = builder.read(&response.serialise());
         }
         builder.write(&Message::Have(1).serialise());
+        builder.write(&Message::KeepAlive.serialise());
         let socket = builder.build();
         let client = Client::new(socket, info_hash).await.unwrap();
 
@@ -590,14 +646,24 @@ mod tests {
         let mut receiver_buf = [0; NO_OF_PIECES as usize * PIECE_LEN as usize];
         let (tx, rx) = tokio::sync::mpsc::channel(NO_OF_PIECES as usize);
 
+        // Setup channel for notification when all pieces have been downloaded
+        let (completion_tx, completion_rx) = tokio::sync::watch::channel(false);
+
         // Spawn tokio task to run worker
-        let mut worker = Worker::new(client, tx, queue);
+        let mut worker = Worker::new(client, tx, completion_rx, queue);
         tokio::spawn(async move {
             worker.download().await.unwrap();
         });
 
         // Run piece-receiver
-        crate::piece::receiver(&mut receiver_buf, PIECE_LEN as usize, rx).await;
+        crate::piece::receiver(
+            &mut receiver_buf,
+            PIECE_LEN as usize,
+            rx,
+            NO_OF_PIECES as usize,
+            completion_tx,
+        )
+        .await;
 
         assert_eq!(receiver_buf, original_data);
     }
@@ -822,18 +888,29 @@ mod tests {
         let (tx, rx) = tokio::sync::mpsc::channel(NO_OF_PIECES as usize);
         let tx1 = tx.clone();
 
+        // Setup channel for notification when all pieces have been downloaded
+        let (completion_tx, completion_rx1) = tokio::sync::watch::channel(false);
+        let completion_rx2 = completion_rx1.clone();
+
         // Spawn tokio tasks to run workers
-        let mut peer_0_worker = Worker::new(peer_0_client, tx, queue);
+        let mut peer_0_worker = Worker::new(peer_0_client, tx, completion_rx1, queue);
         tokio::spawn(async move {
             peer_0_worker.download().await.unwrap();
         });
-        let mut peer_1_worker = Worker::new(peer_1_client, tx1, queue_handle);
+        let mut peer_1_worker = Worker::new(peer_1_client, tx1, completion_rx2, queue_handle);
         tokio::spawn(async move {
             peer_1_worker.download().await.unwrap();
         });
 
         // Run piece-receiver
-        crate::piece::receiver(&mut receiver_buf, PIECE_LEN as usize, rx).await;
+        crate::piece::receiver(
+            &mut receiver_buf,
+            PIECE_LEN as usize,
+            rx,
+            NO_OF_PIECES as usize,
+            completion_tx,
+        )
+        .await;
 
         assert_eq!(receiver_buf, &original_data[..]);
     }
@@ -965,6 +1042,7 @@ mod tests {
             builder = builder.read(&response.serialise());
         }
         builder.write(&Message::Have(1).serialise());
+        builder.write(&Message::KeepAlive.serialise());
         let socket = builder.build();
         let client = Client::new(socket, info_hash).await.unwrap();
 
@@ -972,14 +1050,24 @@ mod tests {
         let mut receiver_buf = [0; NO_OF_PIECES as usize * PIECE_LEN as usize];
         let (tx, rx) = tokio::sync::mpsc::channel(NO_OF_PIECES as usize);
 
+        // Setup channel for notification when all pieces have been downloaded
+        let (completion_tx, completion_rx) = tokio::sync::watch::channel(false);
+
         // Spawn tokio task to run worker
-        let mut worker = Worker::new(client, tx, queue);
+        let mut worker = Worker::new(client, tx, completion_rx, queue);
         tokio::spawn(async move {
             worker.download().await.unwrap();
         });
 
         // Run piece-receiver
-        crate::piece::receiver(&mut receiver_buf, PIECE_LEN as usize, rx).await;
+        crate::piece::receiver(
+            &mut receiver_buf,
+            PIECE_LEN as usize,
+            rx,
+            NO_OF_PIECES as usize,
+            completion_tx,
+        )
+        .await;
 
         assert_eq!(receiver_buf, original_data);
     }
@@ -1030,13 +1118,190 @@ mod tests {
 
         let mut receiver_buf = [0; PIECE_LEN as usize];
         let (tx, rx) = tokio::sync::mpsc::channel(NO_OF_PIECES as usize);
-        let mut worker = Worker::new(client, tx, queue);
+        let (completion_tx, completion_rx) = tokio::sync::watch::channel(false);
+        let mut worker = Worker::new(client, tx, completion_rx, queue);
         let ret = tokio::spawn(async move { worker.download().await })
             .await
             .unwrap();
-        crate::piece::receiver(&mut receiver_buf, PIECE_LEN as usize, rx).await;
+        crate::piece::receiver(
+            &mut receiver_buf,
+            PIECE_LEN as usize,
+            rx,
+            NO_OF_PIECES as usize,
+            completion_tx,
+        )
+        .await;
         assert!(
             ret.is_err_and(|err| err.to_string() == "Unexpected EOF when reading message length")
         );
+    }
+
+    #[tokio::test]
+    async fn send_keep_alive_if_empty_queue_but_download_not_yet_complete() {
+        // Setup file data
+        const NO_OF_PIECES: u8 = 2;
+        const PIECE_LEN: u8 = 64;
+        let piece_template = (0..PIECE_LEN).collect::<Vec<u8>>();
+        let mut original_data = [0; NO_OF_PIECES as usize * PIECE_LEN as usize];
+        let mut count = 0;
+        let mut idx = 0;
+        while idx < original_data.len() {
+            let piece = piece_template[..]
+                .iter()
+                .map(|val| val + count * 10)
+                .collect::<Vec<u8>>();
+            original_data[idx..idx + PIECE_LEN as usize].copy_from_slice(&piece);
+            count += 1;
+            idx += PIECE_LEN as usize;
+        }
+
+        // Calculate SHA1 hashes of the pieces
+        let mut piece_hashes = Vec::new();
+        for idx in 0..NO_OF_PIECES {
+            let piece = &original_data
+                [idx as usize * PIECE_LEN as usize..(idx as usize + 1) * PIECE_LEN as usize];
+            let hash = sha1_smol::Sha1::from(piece).digest().bytes();
+            piece_hashes.push(hash);
+        }
+
+        // Setup work queue
+        let work_one = Work {
+            index: 0,
+            length: PIECE_LEN as u32,
+            hash: piece_hashes[0].to_vec(),
+        };
+        let work_two = Work {
+            index: 1,
+            length: PIECE_LEN as u32,
+            hash: piece_hashes[1].to_vec(),
+        };
+        // Start with only one work element in queue, to enable the worker to complete that work
+        // element in the queue but also force it to be aware that not all pieces have yet been
+        // downloaded
+        let queue = SharedQueue::new(vec![work_one]);
+
+        // Setup info for preliminary client interactions with peer
+        let info_hash = (0x00..0x14).collect::<Vec<_>>();
+        let their_peer_id = "-DEF123-efgh12345678";
+        let initial_handshake = Handshake::new(PSTR.to_string(), info_hash.clone(), PEER_ID.into());
+        let response_handshake =
+            Handshake::new(PSTR.to_string(), info_hash.clone(), their_peer_id.into());
+        let len: u32 = 2;
+        let id = 0x05;
+        let payload = vec![0b11000000];
+        let mut bitfield_message = u32::to_be_bytes(len).to_vec();
+        bitfield_message.push(id);
+        bitfield_message.append(&mut payload.clone());
+
+        // Setup mock socket with expected block requests/responses (along with all other
+        // preliminary interactions, such as a sucessful handshake)
+        let piece_zero_requests = [
+            Message::Request {
+                index: 0,
+                begin: 0,
+                length: PIECE_LEN as u32 / 2,
+            },
+            Message::Request {
+                index: 0,
+                begin: PIECE_LEN as u32 / 2,
+                length: PIECE_LEN as u32 / 2,
+            },
+        ];
+        let piece_zero_responses = [
+            Message::Piece {
+                index: 0,
+                begin: 0,
+                block: original_data[..PIECE_LEN as usize / 2].to_vec(),
+            },
+            Message::Piece {
+                index: 0,
+                begin: PIECE_LEN as u32 / 2,
+                block: original_data[PIECE_LEN as usize / 2..PIECE_LEN as usize].to_vec(),
+            },
+        ];
+        let piece_one_requests = [
+            Message::Request {
+                index: 1,
+                begin: 0,
+                length: PIECE_LEN as u32 / 2,
+            },
+            Message::Request {
+                index: 1,
+                begin: PIECE_LEN as u32 / 2,
+                length: PIECE_LEN as u32 / 2,
+            },
+        ];
+        let piece_one_responses = [
+            Message::Piece {
+                index: 1,
+                begin: 0,
+                block: original_data
+                    [PIECE_LEN as usize..PIECE_LEN as usize + PIECE_LEN as usize / 2]
+                    .to_vec(),
+            },
+            Message::Piece {
+                index: 1,
+                begin: PIECE_LEN as u32 / 2,
+                block: original_data
+                    [PIECE_LEN as usize + PIECE_LEN as usize / 2..PIECE_LEN as usize * 2]
+                    .to_vec(),
+            },
+        ];
+        let mut builder = tokio_test::io::Builder::new();
+        let mut builder = builder
+            .write(&initial_handshake.serialise())
+            .read(&response_handshake.serialise())
+            .read(&bitfield_message)
+            .write(&Message::Unchoke.serialise())
+            .write(&Message::Interested.serialise())
+            .read(&Message::Unchoke.serialise());
+        for request in piece_zero_requests {
+            builder = builder.write(&request.serialise());
+        }
+        for response in piece_zero_responses {
+            builder = builder.read(&response.serialise());
+        }
+        builder.write(&Message::Have(0).serialise());
+        builder.write(&Message::KeepAlive.serialise());
+        for request in piece_one_requests {
+            builder = builder.write(&request.serialise());
+        }
+        for response in piece_one_responses {
+            builder = builder.read(&response.serialise());
+        }
+        builder.write(&Message::Have(1).serialise());
+        let socket = builder.build();
+        let client = Client::new(socket, info_hash).await.unwrap();
+
+        // Setup channel that downloaded pieces get sent through
+        let mut receiver_buf = [0; NO_OF_PIECES as usize * PIECE_LEN as usize];
+        let (tx, rx) = tokio::sync::mpsc::channel(NO_OF_PIECES as usize);
+
+        // Setup channel for notification when all pieces have been downloaded
+        let (completion_tx, completion_rx) = tokio::sync::watch::channel(false);
+
+        // Spawn task to run worker
+        let mut worker = Worker::new(client, tx, completion_rx, queue.clone());
+        tokio::spawn(async move {
+            worker.download().await.unwrap();
+        });
+        // Give spawned task time to run on current-thread runtime
+        tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
+
+        // Spawn task that adds second work element to queue
+        tokio::spawn(async move {
+            queue.enqueue(work_two);
+        });
+
+        // Run piece-receiver
+        crate::piece::receiver(
+            &mut receiver_buf,
+            PIECE_LEN as usize,
+            rx,
+            NO_OF_PIECES as usize,
+            completion_tx,
+        )
+        .await;
+        assert_eq!(receiver_buf, original_data);
     }
 }

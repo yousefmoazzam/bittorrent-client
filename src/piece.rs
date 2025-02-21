@@ -10,7 +10,14 @@ pub struct Piece {
 }
 
 /// Receive completed pieces and store them in an in-memory buffer
-pub async fn receiver(buf: &mut [u8], piece_length: usize, mut rx: Receiver<Piece>) {
+pub async fn receiver(
+    buf: &mut [u8],
+    piece_length: usize,
+    mut rx: Receiver<Piece>,
+    no_of_pieces: usize,
+    completion_sender: tokio::sync::watch::Sender<bool>,
+) {
+    let mut downloaded_pieces = 0;
     while let Some(piece_result) = rx.recv().await {
         let start = piece_result.index as usize * piece_length;
         let end = if start + piece_length <= buf.len() {
@@ -18,7 +25,11 @@ pub async fn receiver(buf: &mut [u8], piece_length: usize, mut rx: Receiver<Piec
         } else {
             buf.len()
         };
-        buf[start..end].copy_from_slice(&piece_result.buf)
+        buf[start..end].copy_from_slice(&piece_result.buf);
+        downloaded_pieces += 1;
+        if downloaded_pieces == no_of_pieces {
+            completion_sender.send(true).unwrap();
+        }
     }
 }
 
@@ -47,6 +58,7 @@ mod tests {
         let mut receiver_buf = [0; 1024];
         let (tx, rx) = tokio::sync::mpsc::channel(CHANNEL_BUFFER_SIZE);
         let tx1 = tx.clone();
+        let (completion_tx, _completion_rx) = tokio::sync::watch::channel(false);
 
         tokio::spawn(async move {
             tx.send(Piece {
@@ -102,7 +114,14 @@ mod tests {
             .unwrap();
         });
 
-        receiver(&mut receiver_buf, PIECE_LEN, rx).await;
+        receiver(
+            &mut receiver_buf,
+            PIECE_LEN,
+            rx,
+            CHANNEL_BUFFER_SIZE,
+            completion_tx,
+        )
+        .await;
         assert_eq!(&receiver_buf[..], &original_data[..]);
     }
 
@@ -130,6 +149,7 @@ mod tests {
         let mut receiver_buf = [0; PIECE_LEN * (CHANNEL_BUFFER_SIZE - 1) + TRUNCATED_PIECE_LEN];
         let (tx, rx) = tokio::sync::mpsc::channel(CHANNEL_BUFFER_SIZE);
         let tx1 = tx.clone();
+        let (completion_tx, _completion_rx) = tokio::sync::watch::channel(false);
 
         tokio::spawn(async move {
             tx.send(Piece {
@@ -185,7 +205,14 @@ mod tests {
             .unwrap();
         });
 
-        receiver(&mut receiver_buf, PIECE_LEN, rx).await;
+        receiver(
+            &mut receiver_buf,
+            PIECE_LEN,
+            rx,
+            CHANNEL_BUFFER_SIZE,
+            completion_tx,
+        )
+        .await;
         assert_eq!(&receiver_buf[..], &original_data[..]);
     }
 }

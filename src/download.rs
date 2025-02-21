@@ -23,24 +23,39 @@ pub async fn download(torrent: Torrent) -> Vec<u8> {
     let no_of_pieces = work.len();
     let queue = SharedQueue::new(work);
     let (tx, rx) = tokio::sync::mpsc::channel(no_of_pieces);
+    let (completion_tx, completion_rx) = tokio::sync::watch::channel(false);
 
     for peer in torrent.peers {
         let info_hash = torrent.info_hash.clone();
         let queue = queue.clone();
         let tx = tx.clone();
+        let completion_rx = completion_rx.clone();
         tokio::spawn(async move {
-            process(info_hash, &peer, tx, queue).await;
+            process(info_hash, &peer, tx, completion_rx, queue).await;
         });
     }
 
     drop(tx);
     let mut buf = vec![0; torrent.metainfo.info.length];
-    crate::piece::receiver(&mut buf, torrent.metainfo.info.piece_length, rx).await;
+    crate::piece::receiver(
+        &mut buf,
+        torrent.metainfo.info.piece_length,
+        rx,
+        no_of_pieces,
+        completion_tx,
+    )
+    .await;
     buf
 }
 
-#[instrument(skip(info_hash, tx, queue))]
-async fn process(info_hash: Vec<u8>, peer: &Peer, tx: Sender<Piece>, queue: SharedQueue) {
+#[instrument(skip(info_hash, tx, completion_rx, queue))]
+async fn process(
+    info_hash: Vec<u8>,
+    peer: &Peer,
+    tx: Sender<Piece>,
+    completion_rx: tokio::sync::watch::Receiver<bool>,
+    queue: SharedQueue,
+) {
     let addr = format!("{}:{}", peer.ip, peer.port);
     match tokio::net::TcpStream::connect(addr).await {
         Err(e) => {
@@ -54,7 +69,7 @@ async fn process(info_hash: Vec<u8>, peer: &Peer, tx: Sender<Piece>, queue: Shar
                     info!("Established peer protocol");
                     tokio::spawn(
                         async move {
-                            let mut worker = Worker::new(client, tx, queue);
+                            let mut worker = Worker::new(client, tx, completion_rx, queue);
                             match worker.download().await {
                                 Err(e) => warn!("Encountered error during download: {}", e),
                                 Ok(_) => {
