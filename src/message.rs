@@ -1,4 +1,5 @@
 use tokio::io::{AsyncRead, AsyncReadExt};
+use tracing::warn;
 
 const BITS_IN_BYTE: usize = 8;
 
@@ -114,7 +115,8 @@ impl Message {
     {
         let len = socket.read_u32().await.map_err(|err| match err.kind() {
             std::io::ErrorKind::UnexpectedEof => {
-                std::io::Error::other("Unexpected EOF when reading message length")
+                warn!("Unexpected EOF when reading message length");
+                err
             }
             _ => err,
         })?;
@@ -123,10 +125,10 @@ impl Message {
         }
 
         let id = socket.read_u8().await.map_err(|err| match err.kind() {
-            std::io::ErrorKind::UnexpectedEof => std::io::Error::other(format!(
-                "Unexpected EOF when reading message ID; len={}",
-                len
-            )),
+            std::io::ErrorKind::UnexpectedEof => {
+                warn!("Unexpected EOF when reading message ID; len={}", len);
+                err
+            }
             _ => err,
         })?;
 
@@ -148,10 +150,13 @@ impl Message {
             .read_exact(&mut bytes[..])
             .await
             .map_err(|err| match err.kind() {
-                std::io::ErrorKind::UnexpectedEof => std::io::Error::other(format!(
-                    "Unexpected EOF when reading message payload; len={}, id={}",
-                    len, id
-                )),
+                std::io::ErrorKind::UnexpectedEof => {
+                    warn!(
+                        "Unexpected EOF when reading message payload; len={}, id={}",
+                        len, id
+                    );
+                    err
+                }
                 _ => err,
             })?;
         match id {
