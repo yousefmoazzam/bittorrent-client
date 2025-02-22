@@ -38,6 +38,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Worker<T> {
         self.client.send(Message::Unchoke).await?;
         self.client.send(Message::Interested).await?;
 
+        let timeout_interval = tokio::time::Duration::from_secs(15);
         let mut time_since_last_keep_alive = None;
         loop {
             while let Some(work) = self.work_queue.dequeue() {
@@ -47,12 +48,25 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Worker<T> {
                     continue;
                 }
                 let index = work.index;
-                let buf = match self.download_piece(&work).await {
-                    Ok(val) => val,
-                    Err(e) => {
-                        warn!("Failed to download piece {}, putting back on queue", index);
+                let buf = match tokio::time::timeout(timeout_interval, self.download_piece(&work))
+                    .await
+                {
+                    Ok(inner) => match inner {
+                        Ok(val) => val,
+                        Err(e) => {
+                            warn!("Failed to download piece {}, putting back on queue", index);
+                            self.work_queue.enqueue(work);
+                            return Err(e);
+                        }
+                    },
+                    Err(_) => {
+                        warn!(
+                            "Timed out downloading piece {}, putting back on queue",
+                            index
+                        );
                         self.work_queue.enqueue(work);
-                        return Err(e);
+                        tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+                        continue;
                     }
                 };
                 if self.check_integrity(&work, &buf) {
