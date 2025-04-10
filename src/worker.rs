@@ -1,6 +1,6 @@
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::mpsc::Sender;
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 
 use crate::client::Client;
 use crate::message::Message;
@@ -70,6 +70,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Worker<T> {
                     }
                 };
                 if self.check_integrity(&work, &buf) {
+                    info!("Downloaded piece with index {}", index);
                     self.client.send(Message::Have(index)).await.unwrap();
                     self.piece_sender.send(Piece { index, buf }).await.unwrap();
                 } else {
