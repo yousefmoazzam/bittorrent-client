@@ -44,7 +44,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Worker<T> {
             while let Some(work) = self.work_queue.dequeue() {
                 if !self.client.bitfield.has_piece(work.index as usize) {
                     self.work_queue.enqueue(work);
-                    tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+                    tokio::task::yield_now().await;
                     continue;
                 }
                 let index = work.index;
@@ -65,7 +65,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Worker<T> {
                             index
                         );
                         self.work_queue.enqueue(work);
-                        tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+                        tokio::task::yield_now().await;
                         continue;
                     }
                 };
@@ -94,7 +94,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Worker<T> {
                     }
                 }
             }
-            tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+            tokio::task::yield_now().await;
         }
 
         Ok(())
@@ -1243,8 +1243,8 @@ mod tests {
         tokio::spawn(async move {
             worker.download().await.unwrap();
         });
-        // Give spawned task time to run on current-thread runtime
-        tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
+        // Give spawned task chance to run on current-thread runtime
+        tokio::task::yield_now().await;
 
         // Spawn task that adds second work element to queue
         tokio::spawn(async move {

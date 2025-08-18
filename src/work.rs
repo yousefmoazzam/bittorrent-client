@@ -67,8 +67,8 @@ mod tests {
         let task_one_handle = tokio::spawn(async move {
             while let Some(work) = queue.dequeue() {
                 task_one_work_indices.push(work.index);
-                // Short sleep to enable interleaving of tasks
-                tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
+                // Yield to enable interleaving of tasks
+                tokio::task::yield_now().await;
             }
             task_one_work_indices
         });
@@ -76,8 +76,8 @@ mod tests {
         let task_two_handle = tokio::spawn(async move {
             while let Some(work) = queue_handle1.dequeue() {
                 task_two_work_indices.push(work.index);
-                // Short sleep to enable interleaving of tasks
-                tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
+                // Yield to enable interleaving of tasks
+                tokio::task::yield_now().await;
             }
             task_two_work_indices
         });
@@ -113,8 +113,8 @@ mod tests {
         let task_one_handle = tokio::spawn(async move {
             while let Some(work) = queue.dequeue() {
                 task_one_work_indices.push(work.index);
-                // Short sleep to enable interleaving of tasks
-                tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
+                // Yield to enable interleaving of tasks
+                tokio::task::yield_now().await;
             }
             task_one_work_indices
         });
@@ -122,8 +122,8 @@ mod tests {
         let task_two_handle = tokio::spawn(async move {
             while let Some(work) = queue_handle1.dequeue() {
                 task_two_work_indices.push(work.index);
-                // Short sleep to enable interleaving of tasks
-                tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
+                // Yield to enable interleaving of tasks
+                tokio::task::yield_now().await;
             }
             task_two_work_indices
         });
@@ -139,8 +139,8 @@ mod tests {
         let task_three_handle = tokio::spawn(async move {
             for work in extra_work {
                 queue_handle2.enqueue(work);
-                // Short sleep to enable interleaving of tasks
-                tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
+                // Yield to enable interleaving of tasks
+                tokio::task::yield_now().await;
             }
         });
         let mut task_one_work_indices = task_one_handle.await.unwrap();
