@@ -64,26 +64,23 @@ mod tests {
         let mut task_one_work_indices = Vec::new();
         let mut task_two_work_indices = Vec::new();
 
-        let task_one_handle = tokio::spawn(async move {
+        let fut_one = async move {
             while let Some(work) = queue.dequeue() {
                 task_one_work_indices.push(work.index);
                 // Yield to enable interleaving of tasks
                 tokio::task::yield_now().await;
             }
             task_one_work_indices
-        });
-
-        let task_two_handle = tokio::spawn(async move {
+        };
+        let fut_two = async move {
             while let Some(work) = queue_handle1.dequeue() {
                 task_two_work_indices.push(work.index);
                 // Yield to enable interleaving of tasks
                 tokio::task::yield_now().await;
             }
             task_two_work_indices
-        });
-
-        let mut task_one_work_indices = task_one_handle.await.unwrap();
-        let mut task_two_work_indices = task_two_handle.await.unwrap();
+        };
+        let (mut task_one_work_indices, mut task_two_work_indices) = tokio::join!(fut_one, fut_two);
         task_one_work_indices.append(&mut task_two_work_indices);
         task_one_work_indices.sort();
         assert_eq!(indices, task_one_work_indices);
@@ -110,24 +107,22 @@ mod tests {
         let mut task_one_work_indices = Vec::new();
         let mut task_two_work_indices = Vec::new();
 
-        let task_one_handle = tokio::spawn(async move {
+        let fut_one = async move {
             while let Some(work) = queue.dequeue() {
                 task_one_work_indices.push(work.index);
                 // Yield to enable interleaving of tasks
                 tokio::task::yield_now().await;
             }
             task_one_work_indices
-        });
-
-        let task_two_handle = tokio::spawn(async move {
+        };
+        let fut_two = async move {
             while let Some(work) = queue_handle1.dequeue() {
                 task_two_work_indices.push(work.index);
                 // Yield to enable interleaving of tasks
                 tokio::task::yield_now().await;
             }
             task_two_work_indices
-        });
-
+        };
         let extra_work = extra_indices
             .iter()
             .map(|index| Work {
@@ -136,16 +131,16 @@ mod tests {
                 hash: vec![0x04],
             })
             .collect::<Vec<Work>>();
-        let task_three_handle = tokio::spawn(async move {
+        let fut_three = async move {
             for work in extra_work {
                 queue_handle2.enqueue(work);
                 // Yield to enable interleaving of tasks
                 tokio::task::yield_now().await;
             }
-        });
-        let mut task_one_work_indices = task_one_handle.await.unwrap();
-        let mut task_two_work_indices = task_two_handle.await.unwrap();
-        task_three_handle.await.unwrap();
+        };
+
+        let (mut task_one_work_indices, mut task_two_work_indices, _) =
+            tokio::join!(fut_one, fut_two, fut_three);
         task_one_work_indices.append(&mut task_two_work_indices);
         task_one_work_indices.sort();
         assert_eq!(expected_indices, task_one_work_indices);
