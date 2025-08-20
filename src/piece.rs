@@ -61,57 +61,47 @@ mod tests {
         let (completion_tx, _completion_rx) = tokio::sync::watch::channel(false);
 
         let sender_one_fut = async move {
-            tx.send(Piece {
-                index: 1,
-                buf: pieces_first_half[1].to_vec(),
-            })
-            .await
-            .unwrap();
-            tx.send(Piece {
-                index: 3,
-                buf: pieces_first_half[3].to_vec(),
-            })
-            .await
-            .unwrap();
-            tx.send(Piece {
-                index: 0,
-                buf: pieces_first_half[0].to_vec(),
-            })
-            .await
-            .unwrap();
-            tx.send(Piece {
-                index: 2,
-                buf: pieces_first_half[2].to_vec(),
-            })
-            .await
-            .unwrap();
+            tokio::try_join!(
+                tx.send(Piece {
+                    index: 1,
+                    buf: pieces_first_half[1].to_vec(),
+                }),
+                tx.send(Piece {
+                    index: 3,
+                    buf: pieces_first_half[3].to_vec(),
+                }),
+                tx.send(Piece {
+                    index: 0,
+                    buf: pieces_first_half[0].to_vec(),
+                }),
+                tx.send(Piece {
+                    index: 2,
+                    buf: pieces_first_half[2].to_vec(),
+                })
+            )
+            .unwrap()
         };
 
         let sender_two_fut = async move {
-            tx1.send(Piece {
-                index: 1 + 4,
-                buf: pieces_second_half[1].to_vec(),
-            })
-            .await
-            .unwrap();
-            tx1.send(Piece {
-                index: 3 + 4,
-                buf: pieces_second_half[3].to_vec(),
-            })
-            .await
-            .unwrap();
-            tx1.send(Piece {
-                index: 4,
-                buf: pieces_second_half[0].to_vec(),
-            })
-            .await
-            .unwrap();
-            tx1.send(Piece {
-                index: 2 + 4,
-                buf: pieces_second_half[2].to_vec(),
-            })
-            .await
-            .unwrap();
+            tokio::try_join!(
+                tx1.send(Piece {
+                    index: 1 + 4,
+                    buf: pieces_second_half[1].to_vec(),
+                }),
+                tx1.send(Piece {
+                    index: 3 + 4,
+                    buf: pieces_second_half[3].to_vec(),
+                }),
+                tx1.send(Piece {
+                    index: 4,
+                    buf: pieces_second_half[0].to_vec(),
+                }),
+                tx1.send(Piece {
+                    index: 2 + 4,
+                    buf: pieces_second_half[2].to_vec(),
+                })
+            )
+            .unwrap()
         };
 
         tokio::join!(
@@ -155,57 +145,47 @@ mod tests {
         let (completion_tx, _completion_rx) = tokio::sync::watch::channel(false);
 
         let sender_one_fut = async move {
-            tx.send(Piece {
-                index: 1,
-                buf: pieces_first_half[1].to_vec(),
-            })
-            .await
-            .unwrap();
-            tx.send(Piece {
-                index: 3,
-                buf: pieces_first_half[3].to_vec(),
-            })
-            .await
-            .unwrap();
-            tx.send(Piece {
-                index: 0,
-                buf: pieces_first_half[0].to_vec(),
-            })
-            .await
-            .unwrap();
-            tx.send(Piece {
-                index: 2,
-                buf: pieces_first_half[2].to_vec(),
-            })
-            .await
-            .unwrap();
+            tokio::try_join!(
+                tx.send(Piece {
+                    index: 1,
+                    buf: pieces_first_half[1].to_vec(),
+                }),
+                tx.send(Piece {
+                    index: 3,
+                    buf: pieces_first_half[3].to_vec(),
+                }),
+                tx.send(Piece {
+                    index: 0,
+                    buf: pieces_first_half[0].to_vec(),
+                }),
+                tx.send(Piece {
+                    index: 2,
+                    buf: pieces_first_half[2].to_vec(),
+                })
+            )
+            .unwrap()
         };
 
         let sender_two_fut = async move {
-            tx1.send(Piece {
-                index: 1 + 4,
-                buf: pieces_second_half[1].to_vec(),
-            })
-            .await
-            .unwrap();
-            tx1.send(Piece {
-                index: 3 + 4,
-                buf: pieces_second_half[3].to_vec(),
-            })
-            .await
-            .unwrap();
-            tx1.send(Piece {
-                index: 4,
-                buf: pieces_second_half[0].to_vec(),
-            })
-            .await
-            .unwrap();
-            tx1.send(Piece {
-                index: 2 + 4,
-                buf: pieces_second_half[2].to_vec(),
-            })
-            .await
-            .unwrap();
+            tokio::try_join!(
+                tx1.send(Piece {
+                    index: 1 + 4,
+                    buf: pieces_second_half[1].to_vec(),
+                }),
+                tx1.send(Piece {
+                    index: 3 + 4,
+                    buf: pieces_second_half[3].to_vec(),
+                }),
+                tx1.send(Piece {
+                    index: 4,
+                    buf: pieces_second_half[0].to_vec(),
+                }),
+                tx1.send(Piece {
+                    index: 2 + 4,
+                    buf: pieces_second_half[2].to_vec(),
+                })
+            )
+            .unwrap()
         };
 
         tokio::join!(
