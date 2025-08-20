@@ -60,7 +60,7 @@ mod tests {
         let tx1 = tx.clone();
         let (completion_tx, _completion_rx) = tokio::sync::watch::channel(false);
 
-        tokio::spawn(async move {
+        let sender_one_fut = async move {
             tx.send(Piece {
                 index: 1,
                 buf: pieces_first_half[1].to_vec(),
@@ -85,9 +85,9 @@ mod tests {
             })
             .await
             .unwrap();
-        });
+        };
 
-        tokio::spawn(async move {
+        let sender_two_fut = async move {
             tx1.send(Piece {
                 index: 1 + 4,
                 buf: pieces_second_half[1].to_vec(),
@@ -112,16 +112,19 @@ mod tests {
             })
             .await
             .unwrap();
-        });
+        };
 
-        receiver(
-            &mut receiver_buf,
-            PIECE_LEN,
-            rx,
-            CHANNEL_BUFFER_SIZE,
-            completion_tx,
-        )
-        .await;
+        tokio::join!(
+            sender_one_fut,
+            sender_two_fut,
+            receiver(
+                &mut receiver_buf,
+                PIECE_LEN,
+                rx,
+                CHANNEL_BUFFER_SIZE,
+                completion_tx,
+            )
+        );
         assert_eq!(&receiver_buf[..], &original_data[..]);
     }
 
@@ -151,7 +154,7 @@ mod tests {
         let tx1 = tx.clone();
         let (completion_tx, _completion_rx) = tokio::sync::watch::channel(false);
 
-        tokio::spawn(async move {
+        let sender_one_fut = async move {
             tx.send(Piece {
                 index: 1,
                 buf: pieces_first_half[1].to_vec(),
@@ -176,9 +179,9 @@ mod tests {
             })
             .await
             .unwrap();
-        });
+        };
 
-        tokio::spawn(async move {
+        let sender_two_fut = async move {
             tx1.send(Piece {
                 index: 1 + 4,
                 buf: pieces_second_half[1].to_vec(),
@@ -203,16 +206,19 @@ mod tests {
             })
             .await
             .unwrap();
-        });
+        };
 
-        receiver(
-            &mut receiver_buf,
-            PIECE_LEN,
-            rx,
-            CHANNEL_BUFFER_SIZE,
-            completion_tx,
-        )
-        .await;
+        tokio::join!(
+            sender_one_fut,
+            sender_two_fut,
+            receiver(
+                &mut receiver_buf,
+                PIECE_LEN,
+                rx,
+                CHANNEL_BUFFER_SIZE,
+                completion_tx,
+            )
+        );
         assert_eq!(&receiver_buf[..], &original_data[..]);
     }
 }
