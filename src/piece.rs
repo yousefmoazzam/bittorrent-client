@@ -43,17 +43,12 @@ mod tests {
         const CHANNEL_BUFFER_SIZE: usize = 8;
 
         let original_data = (0..PIECE_LEN as u8).collect::<Vec<u8>>().repeat(8);
-        let mut pieces_first_half = Vec::new();
-        let mut pieces_second_half = Vec::new();
-        let mut count = 0;
-        while count < original_data.len() / 2 {
-            pieces_first_half.push(original_data[count..count + PIECE_LEN].to_vec());
-            count += PIECE_LEN;
-        }
-        while count < original_data.len() {
-            pieces_second_half.push(original_data[count..count + PIECE_LEN].to_vec());
-            count += PIECE_LEN;
-        }
+        let pieces_first_half = original_data[..original_data.len() / 2]
+            .chunks_exact(PIECE_LEN)
+            .collect::<Vec<_>>();
+        let pieces_second_half = original_data[original_data.len() / 2..]
+            .chunks_exact(PIECE_LEN)
+            .collect::<Vec<_>>();
 
         let mut receiver_buf = [0; 1024];
         let (tx, rx) = tokio::sync::mpsc::channel(CHANNEL_BUFFER_SIZE);
@@ -125,19 +120,14 @@ mod tests {
         const CHANNEL_BUFFER_SIZE: usize = 8;
 
         let mut original_data = (0..PIECE_LEN as u8).collect::<Vec<u8>>().repeat(8);
+        let len_before_truncation = original_data.len();
         let _ = original_data.split_off(original_data.len() - 4);
-        let mut pieces_first_half = Vec::new();
-        let mut pieces_second_half = Vec::new();
-        let mut count = 0;
-        while count < original_data.len() / 2 {
-            pieces_first_half.push(original_data[count..count + PIECE_LEN].to_vec());
-            count += PIECE_LEN;
-        }
-        while count < original_data.len() - TRUNCATED_PIECE_LEN {
-            pieces_second_half.push(original_data[count..count + PIECE_LEN].to_vec());
-            count += PIECE_LEN;
-        }
-        pieces_second_half.push(original_data[count..count + TRUNCATED_PIECE_LEN].to_vec());
+        let pieces_first_half = original_data[..len_before_truncation / 2]
+            .chunks_exact(PIECE_LEN)
+            .collect::<Vec<_>>();
+        let pieces_second_half = original_data[len_before_truncation / 2..]
+            .chunks(PIECE_LEN)
+            .collect::<Vec<_>>();
 
         let mut receiver_buf = [0; PIECE_LEN * (CHANNEL_BUFFER_SIZE - 1) + TRUNCATED_PIECE_LEN];
         let (tx, rx) = tokio::sync::mpsc::channel(CHANNEL_BUFFER_SIZE);
