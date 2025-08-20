@@ -22,11 +22,10 @@ pub struct SharedQueue {
 }
 
 impl SharedQueue {
-    /// Create shared queue from vector of work
-    pub fn new(work: Vec<Work>) -> SharedQueue {
-        let queue = VecDeque::from(work);
+    /// Create shared queue from work
+    pub fn new(work: impl Into<VecDeque<Work>>) -> SharedQueue {
         SharedQueue {
-            inner: Arc::new(Mutex::new(SharedQueueInner(queue))),
+            inner: Arc::new(Mutex::new(SharedQueueInner(work.into()))),
         }
     }
 
