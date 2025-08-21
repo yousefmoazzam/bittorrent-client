@@ -67,18 +67,17 @@ async fn process(
                 Err(e) => warn!("Unable to establish peer protocol: {}", e),
                 Ok(client) => {
                     info!("Established peer protocol");
-                    tokio::spawn(
-                        async move {
-                            let mut worker = Worker::new(client, tx, completion_rx, queue);
-                            match worker.download().await {
-                                Err(e) => warn!("Encountered error during download: {}", e),
-                                Ok(_) => {
-                                    info!("Successful download")
-                                }
-                            };
-                        }
-                        .instrument(tracing::Span::current()),
-                    );
+                    async move {
+                        let mut worker = Worker::new(client, tx, completion_rx, queue);
+                        match worker.download().await {
+                            Err(e) => warn!("Encountered error during download: {}", e),
+                            Ok(_) => {
+                                info!("Successful download")
+                            }
+                        };
+                    }
+                    .instrument(tracing::Span::current())
+                    .await;
                 }
             };
         }
