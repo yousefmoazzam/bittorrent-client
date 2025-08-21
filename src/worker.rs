@@ -40,7 +40,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Worker<T> {
 
         let timeout_interval = tokio::time::Duration::from_secs(15);
         let mut time_since_last_keep_alive = None;
-        loop {
+        while !*self.completion_receiver.borrow() {
             while let Some(work) = self.work_queue.dequeue() {
                 if !self.client.bitfield.has_piece(work.index as usize) {
                     self.work_queue.enqueue(work);
@@ -76,10 +76,6 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Worker<T> {
                 } else {
                     self.work_queue.enqueue(work);
                 }
-            }
-
-            if *self.completion_receiver.borrow() {
-                break;
             }
 
             match time_since_last_keep_alive {
