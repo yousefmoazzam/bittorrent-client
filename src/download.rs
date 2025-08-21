@@ -58,9 +58,7 @@ async fn process(
 ) {
     let addr = format!("{}:{}", peer.ip, peer.port);
     match tokio::net::TcpStream::connect(addr).await {
-        Err(e) => {
-            warn!("Unable to establish TCP connection: {}", e);
-        }
+        Err(e) => warn!("Unable to establish TCP connection: {}", e),
         Ok(socket) => {
             info!("Established TCP connection");
             match Client::new(tokio::io::BufReader::new(socket), info_hash).await {
@@ -71,9 +69,7 @@ async fn process(
                         let mut worker = Worker::new(client, tx, completion_rx, queue);
                         match worker.download().await {
                             Err(e) => warn!("Encountered error during download: {}", e),
-                            Ok(_) => {
-                                info!("Successful download")
-                            }
+                            Ok(_) => info!("Successful download"),
                         };
                     }
                     .instrument(tracing::Span::current())
