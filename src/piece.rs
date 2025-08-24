@@ -37,6 +37,17 @@ pub async fn receiver(
 mod tests {
     use super::*;
 
+    /// Helper for sending pieces in tests that use multiple vectors to store pieces
+    /// for different mock peers
+    macro_rules! send_piece {
+        ($tx:expr; $vector:expr; $idx:expr; $offset:expr) => {
+            $tx.send(Piece {
+                index: $idx + $offset,
+                buf: $vector[$idx].to_vec(),
+            })
+        };
+    }
+
     #[tokio::test]
     async fn receiver_puts_pieces_together_correctly() {
         const PIECE_LEN: usize = 128;
@@ -57,44 +68,20 @@ mod tests {
 
         let sender_one_fut = async move {
             tokio::try_join!(
-                tx.send(Piece {
-                    index: 1,
-                    buf: pieces_first_half[1].to_vec(),
-                }),
-                tx.send(Piece {
-                    index: 3,
-                    buf: pieces_first_half[3].to_vec(),
-                }),
-                tx.send(Piece {
-                    index: 0,
-                    buf: pieces_first_half[0].to_vec(),
-                }),
-                tx.send(Piece {
-                    index: 2,
-                    buf: pieces_first_half[2].to_vec(),
-                })
+                send_piece!(tx; pieces_first_half; 1; 0),
+                send_piece!(tx; pieces_first_half; 3; 0),
+                send_piece!(tx; pieces_first_half; 0; 0),
+                send_piece!(tx; pieces_first_half; 2; 0),
             )
             .unwrap()
         };
 
         let sender_two_fut = async move {
             tokio::try_join!(
-                tx1.send(Piece {
-                    index: 1 + 4,
-                    buf: pieces_second_half[1].to_vec(),
-                }),
-                tx1.send(Piece {
-                    index: 3 + 4,
-                    buf: pieces_second_half[3].to_vec(),
-                }),
-                tx1.send(Piece {
-                    index: 4,
-                    buf: pieces_second_half[0].to_vec(),
-                }),
-                tx1.send(Piece {
-                    index: 2 + 4,
-                    buf: pieces_second_half[2].to_vec(),
-                })
+                send_piece!(tx1; pieces_second_half; 1; 4),
+                send_piece!(tx1; pieces_second_half; 3; 4),
+                send_piece!(tx1; pieces_second_half; 0; 4),
+                send_piece!(tx1; pieces_second_half; 2; 4),
             )
             .unwrap()
         };
@@ -136,44 +123,20 @@ mod tests {
 
         let sender_one_fut = async move {
             tokio::try_join!(
-                tx.send(Piece {
-                    index: 1,
-                    buf: pieces_first_half[1].to_vec(),
-                }),
-                tx.send(Piece {
-                    index: 3,
-                    buf: pieces_first_half[3].to_vec(),
-                }),
-                tx.send(Piece {
-                    index: 0,
-                    buf: pieces_first_half[0].to_vec(),
-                }),
-                tx.send(Piece {
-                    index: 2,
-                    buf: pieces_first_half[2].to_vec(),
-                })
+                send_piece!(tx; pieces_first_half; 1; 0),
+                send_piece!(tx; pieces_first_half; 3; 0),
+                send_piece!(tx; pieces_first_half; 0; 0),
+                send_piece!(tx; pieces_first_half; 2; 0),
             )
             .unwrap()
         };
 
         let sender_two_fut = async move {
             tokio::try_join!(
-                tx1.send(Piece {
-                    index: 1 + 4,
-                    buf: pieces_second_half[1].to_vec(),
-                }),
-                tx1.send(Piece {
-                    index: 3 + 4,
-                    buf: pieces_second_half[3].to_vec(),
-                }),
-                tx1.send(Piece {
-                    index: 4,
-                    buf: pieces_second_half[0].to_vec(),
-                }),
-                tx1.send(Piece {
-                    index: 2 + 4,
-                    buf: pieces_second_half[2].to_vec(),
-                })
+                send_piece!(tx1; pieces_second_half; 1; 4),
+                send_piece!(tx1; pieces_second_half; 3; 4),
+                send_piece!(tx1; pieces_second_half; 0; 4),
+                send_piece!(tx1; pieces_second_half; 2; 4),
             )
             .unwrap()
         };
