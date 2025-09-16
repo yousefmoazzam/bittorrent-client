@@ -9,6 +9,10 @@ pub(crate) enum Error {
     ExpectedMap,
     /// Byte strings have colon char after number
     ExpectedColon,
+    /// Deserialisation hasn't processed all bytes in input data
+    LeftoverData,
+    ExpectedListEnd,
+    ExpectedMapEnd,
 }
 
 pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
@@ -42,6 +46,9 @@ impl std::fmt::Display for Error {
             Error::ExpectedInteger => f.write_str("Expected integer value"),
             Error::ExpectedByteString => f.write_str("Expected byte string value"),
             Error::ExpectedColon => f.write_str("Expected colon character"),
+            Error::LeftoverData => f.write_str("Expected no data leftover"),
+            Error::ExpectedListEnd => f.write_str("Expected end of list"),
+            Error::ExpectedMapEnd => f.write_str("Expected end of map"),
         }
     }
 }
